@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 36" fill="none" role="img" aria-label="Media Extensions">
+  <rect x="0" y="6" width="24" height="24" rx="6" fill="#1d1d1f"/>
+  <path d="M7 24V12h2.4l2.7 7.2L14.8 12H17v12h-2.1v-7.1L12.4 24h-1.6L8.1 16.9V24H7zm12.2 0V12h6.8v1.9h-4.6v2.8h4.1v1.8h-4.1V22h4.8V24h-7z" fill="#fff"/>
+  <text x="36" y="25" fill="#1d1d1f" font-family="Geist Sans, Segoe UI, system-ui, sans-serif" font-size="18" font-weight="600" letter-spacing="-0.04em">Media Extensions</text>
+</svg>
