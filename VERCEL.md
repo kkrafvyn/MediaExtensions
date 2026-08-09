@@ -1,23 +1,18 @@
-# Vercel settings (required)
+# Vercel
 
-Your last failed log built commit **f0e7814** and only ran `server` `tsc`.
-That means either an old deployment was redeployed, or **Root Directory** is set to `server`.
+This project works with **Root Directory = `server`** (your current Vercel setting) or repo root.
 
-## Fix in Vercel Dashboard
+## Recommended (matches your project now)
 
-**Project → Settings → General**
+| Setting | Value |
+|--------|--------|
+| Root Directory | `server` |
+| Framework Preset | Other |
+| Build Command | `npm run vercel-build` (or leave default from `server/vercel.json`) |
+| Output Directory | `www` |
 
-| Field | Must be |
-|--------|---------|
-| Root Directory | **Empty** (`.`) — not `server`, not `client` |
-| Framework Preset | **Other** |
-| Build Command | Override **OFF** (uses `npm run vercel-build`) |
-| Output Directory | Override **OFF** or `client/dist` |
-| Install Command | Override **OFF** (uses `npm install`) |
-
-Then **Deployments → Redeploy** the latest commit on `main` (**d6c4ba4** or newer).  
-Do not redeploy the old failed deployment (that stays on `f0e7814`).
+`vercel-build` installs the monorepo, builds the Vite client + API, then copies the SPA into `server/www`.
 
 ## Env vars
 
-Copy from `.env.example` — at least `DATABASE_URL`, `SESSION_SECRET`, `CLIENT_URL` (your `*.vercel.app` URL).
+Set from `.env.example` / `server/.env` (at least `DATABASE_URL`, `SESSION_SECRET`, `CLIENT_URL`).

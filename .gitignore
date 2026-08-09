@@ -10,3 +10,5 @@ server/storage/uploads/*
 server/storage/downloads/*
 !server/storage/downloads/.gitkeep
 server/backups/
+server/www/
+
