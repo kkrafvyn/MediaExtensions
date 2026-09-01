@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { IconCheck } from "./Icons";
 
 type ToastState = { message: string; visible: boolean; id: number };
 
@@ -54,16 +55,14 @@ export function ToastHost() {
           width: "1.5rem",
           height: "1.5rem",
           borderRadius: "50%",
-          background: "var(--emerald)",
+          background: "var(--accent)",
           color: "white",
           display: "grid",
           placeItems: "center",
-          fontSize: "0.8rem",
-          fontWeight: 800,
           flexShrink: 0,
         }}
       >
-        ✓
+        <IconCheck size={12} />
       </span>
       <span>{state.message}</span>
     </div>

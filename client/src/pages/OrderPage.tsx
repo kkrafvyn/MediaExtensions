@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, formatGhs } from "../lib/api";
+import { FulfillmentBadge } from "../components/Icons";
 import type { PaymentInfo } from "../types";
 
 type OrderResponse = {
@@ -76,7 +77,9 @@ export function OrderPage() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.5rem" }}>
-            <span className="badge badge-digital">⚡ Instant Downloads Ready</span>
+            <span className="badge badge-digital">
+              <FulfillmentBadge fulfillment="digital" variant="downloads" />
+            </span>
           </div>
           <h3 style={{ color: "white", fontSize: "1.3rem", margin: "0.25rem 0 1rem" }}>
             Your Digital Creator Assets

@@ -3,6 +3,13 @@ import { Link, Navigate, useLocation } from "react-router-dom";
 import { api, formatGhs } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "../components/Toast";
+import {
+  IconBolt,
+  IconPackage,
+  IconWrench,
+  IconSettings,
+  IconStaff,
+} from "../components/Icons";
 
 type Order = {
   id: string;
@@ -163,8 +170,8 @@ export function AccountPage() {
 
         <div style={{ display: "flex", gap: "0.75rem" }}>
           {user.role !== "consumer" && (
-            <Link to="/staff" className="btn btn-primary btn-sm">
-              ⚡ Staff Portal
+            <Link to="/staff" className="btn btn-primary btn-sm inline-icon-label">
+              <IconStaff size={14} /> Staff Portal
             </Link>
           )}
           <button className="btn btn-light btn-sm" onClick={logout}>
@@ -179,25 +186,33 @@ export function AccountPage() {
           className={`pdp-tab-btn ${activeTab === "downloads" ? "active" : ""}`}
           onClick={() => setActiveTab("downloads")}
         >
-          ⚡ Digital Downloads Vault ({downloads.length})
+          <span className="tab-icon-label">
+            <IconBolt size={14} /> Digital Downloads Vault ({downloads.length})
+          </span>
         </button>
         <button
           className={`pdp-tab-btn ${activeTab === "orders" ? "active" : ""}`}
           onClick={() => setActiveTab("orders")}
         >
-          📦 Order History ({orders.length})
+          <span className="tab-icon-label">
+            <IconPackage size={14} /> Order History ({orders.length})
+          </span>
         </button>
         <button
           className={`pdp-tab-btn ${activeTab === "repairs" ? "active" : ""}`}
           onClick={() => setActiveTab("repairs")}
         >
-          🛠️ GSM Repair Tickets ({repairs.length})
+          <span className="tab-icon-label">
+            <IconWrench size={14} /> GSM Repair Tickets ({repairs.length})
+          </span>
         </button>
         <button
           className={`pdp-tab-btn ${activeTab === "settings" ? "active" : ""}`}
           onClick={() => setActiveTab("settings")}
         >
-          ⚙️ Account Settings
+          <span className="tab-icon-label">
+            <IconSettings size={14} /> Account Settings
+          </span>
         </button>
       </div>
 

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "../components/Toast";
+import { IconCheck, IconWarning } from "../components/Icons";
 
 export function ImeiCheckPage() {
   const [imei, setImei] = useState("");
@@ -140,7 +141,9 @@ export function ImeiCheckPage() {
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-                <span style={{ fontSize: "1.25rem" }}>{result.valid ? "✓" : "⚠️"}</span>
+                <span style={{ display: "grid", placeItems: "center" }}>
+                  {result.valid ? <IconCheck size={20} /> : <IconWarning size={20} />}
+                </span>
                 <strong style={{ fontSize: "1.1rem", color: result.valid ? "var(--emerald)" : "var(--danger)" }}>
                   {result.valid ? "Checksum Verified" : "IMEI Formatting Warning"}
                 </strong>

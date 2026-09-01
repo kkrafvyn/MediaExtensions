@@ -6,6 +6,7 @@ import { ToastHost } from "./Toast";
 import { Footer } from "./Footer";
 import { CartDrawer } from "./CartDrawer";
 import { SearchModal } from "./SearchModal";
+import { IconClose, IconMenu } from "./Icons";
 
 export function Layout() {
   const { user, cart } = useAuth();
@@ -105,7 +106,7 @@ export function Layout() {
               aria-expanded={mobileOpen}
               type="button"
             >
-              {mobileOpen ? "✕" : "☰"}
+              {mobileOpen ? <IconClose size={20} /> : <IconMenu size={20} />}
             </button>
           </div>
         </div>

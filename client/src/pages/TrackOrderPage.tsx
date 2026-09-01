@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, formatGhs } from "../lib/api";
+import { IconCheck } from "../components/Icons";
 import type { OrderSummary } from "../types";
 
 type RepairTrack = {
@@ -148,7 +149,7 @@ export function TrackOrderPage() {
                   key={item.label}
                   className={`timeline-step ${isCompleted ? "completed" : ""} ${isCurrent ? "current" : ""}`}
                 >
-                  <div className="timeline-icon">{isCompleted ? "✓" : item.step + 1}</div>
+                  <div className="timeline-icon">{isCompleted ? <IconCheck size={14} /> : item.step + 1}</div>
                   <span className="timeline-label">{item.label}</span>
                 </div>
               );
@@ -215,7 +216,7 @@ export function TrackOrderPage() {
                   key={item.label}
                   className={`timeline-step ${isCompleted ? "completed" : ""} ${isCurrent ? "current" : ""}`}
                 >
-                  <div className="timeline-icon">{isCompleted ? "✓" : item.step + 1}</div>
+                  <div className="timeline-icon">{isCompleted ? <IconCheck size={14} /> : item.step + 1}</div>
                   <span className="timeline-label">{item.label}</span>
                 </div>
               );

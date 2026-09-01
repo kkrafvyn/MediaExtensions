@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, formatGhs } from "../lib/api";
 import { useFocusTrap } from "../lib/useFocusTrap";
+import { IconClose, IconBolt, IconWrench } from "./Icons";
 import type { Product } from "../types";
 
 type SearchModalProps = {
@@ -123,7 +124,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
               onClick={() => setQuery("")}
               aria-label="Clear search"
             >
-              ✕
+              <IconClose size={16} />
             </button>
           )}
         </div>
@@ -263,7 +264,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                   }}
                   style={{ gap: "0.4rem" }}
                 >
-                  <span>⚡</span> Run IMEI Diagnostic
+                  <IconBolt size={14} /> Run IMEI Diagnostic
                 </button>
                 <button
                   className="btn btn-light btn-sm"
@@ -273,7 +274,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                   }}
                   style={{ gap: "0.4rem" }}
                 >
-                  <span>🛠️</span> Book a Repair
+                  <IconWrench size={14} /> Book a Repair
                 </button>
               </div>
             </div>

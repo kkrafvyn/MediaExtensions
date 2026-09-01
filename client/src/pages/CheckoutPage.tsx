@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, formatGhs } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "../components/Toast";
+import { IconBolt, IconLock, IconPhone, IconPin } from "../components/Icons";
 import type { PaymentInfo, SiteMeta } from "../types";
 
 const REGIONS = [
@@ -60,11 +61,16 @@ export function CheckoutPage() {
       : meta.shipping.otherPesewas;
   }, [cart, paymentMethod, shipping.region, meta]);
 
-  const methods: Array<{ value: PaymentMethod; title: string; badge: string; detail: string }> = [
+  const methods: Array<{ value: PaymentMethod; title: string; badge: ReactNode; detail: string }> = [
     {
       value: "momo",
       title: "Mobile Money (MTN / Telecel / AT)",
-      badge: "🇬🇭 Most Popular",
+      badge: (
+        <span className="inline-icon-label">
+          <IconPhone size={12} />
+          <span>Most Popular</span>
+        </span>
+      ),
       detail: paymentInfo
         ? `${paymentInfo.momo.network} · ${paymentInfo.momo.number} · ${paymentInfo.momo.name}`
         : "Pay instantly from your Ghana mobile money wallet",
@@ -82,7 +88,12 @@ export function CheckoutPage() {
           {
             value: "paystack" as const,
             title: "Paystack (Debit / Credit Card & MoMo)",
-            badge: "⚡ Instant Verify",
+            badge: (
+              <span className="inline-icon-label">
+                <IconBolt size={12} />
+                <span>Instant Verify</span>
+              </span>
+            ),
             detail: "Visa, Mastercard, or Mobile Money securely processed online",
           },
         ]
@@ -92,7 +103,12 @@ export function CheckoutPage() {
           {
             value: "pickup" as const,
             title: "Pay On In-Store Pickup",
-            badge: "📍 Accra Studio",
+            badge: (
+              <span className="inline-icon-label">
+                <IconPin size={12} />
+                <span>Accra Studio</span>
+              </span>
+            ),
             detail: "Collect from our Accra location and settle in cash or MoMo",
           },
         ]
@@ -393,7 +409,12 @@ export function CheckoutPage() {
                 ? formatGhs(shippingPesewas)
                 : cart.needsShipping && paymentMethod === "pickup"
                 ? "Free In-Store Pickup"
-                : "⚡ Free Digital Delivery"}
+                : (
+                  <span className="inline-icon-label">
+                    <IconBolt size={12} />
+                    <span>Free Digital Delivery</span>
+                  </span>
+                )}
             </span>
           </div>
 
@@ -432,8 +453,9 @@ export function CheckoutPage() {
               : "Place Order Now →"}
           </button>
 
-          <p className="meta checkout-reassurance" style={{ fontSize: "0.8rem", textAlign: "center", marginTop: "0.5rem" }}>
-            🔒 Bank-grade SSL encryption · Receipts and download keys emailed instantly.
+          <p className="meta checkout-reassurance inline-icon-label" style={{ fontSize: "0.8rem", textAlign: "center", marginTop: "0.5rem", justifyContent: "center" }}>
+            <IconLock size={14} />
+            <span>Bank-grade SSL encryption · Receipts and download keys emailed instantly.</span>
           </p>
         </aside>
       </form>

@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import type { User } from "../types";
+import { IconMail } from "../components/Icons";
 
 export function LoginPage() {
   const { refresh, setUser } = useAuth();
@@ -273,7 +274,9 @@ export function ForgotPasswordPage() {
 
       {submitted ? (
         <div className="panel stack" style={{ textAlign: "center", padding: "2.5rem 1.5rem" }}>
-          <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>✉️</div>
+          <div className="empty-icon">
+            <IconMail size={40} />
+          </div>
           <h3 style={{ fontSize: "1.2rem" }}>Check your inbox</h3>
           <p style={{ color: "var(--muted)", fontSize: "0.92rem", lineHeight: 1.5 }}>
             If an account exists for <strong>{email}</strong>, we've dispatched password reset instructions.

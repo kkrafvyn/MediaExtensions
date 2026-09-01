@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api, formatGhs } from "../lib/api";
+import { FulfillmentBadge, IconBolt, IconCart, IconPackage } from "./Icons";
 
 type CartDrawerProps = {
   isOpen: boolean;
@@ -105,7 +106,9 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
               padding: "2rem",
             }}
           >
-            <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🛍️</div>
+            <div className="empty-icon">
+              <IconCart size={48} />
+            </div>
             <h4 style={{ fontSize: "1.15rem", marginBottom: "0.4rem" }}>
               Your bag is empty
             </h4>
@@ -167,7 +170,10 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                           }`}
                           style={{ fontSize: "0.65rem", padding: "0.15rem 0.4rem" }}
                         >
-                          {isDigital ? "⚡ Digital" : "📦 Physical"}
+                          <FulfillmentBadge
+                            fulfillment={isDigital ? "digital" : "physical"}
+                            variant="short"
+                          />
                         </span>
                         <span className="price">
                           {formatGhs(line.lineTotalPesewas)}
@@ -236,11 +242,18 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                   gap: "0.4rem",
                 }}
               >
-                <span>⚡</span>
-                <span>
-                  {cart.needsShipping
-                    ? "📦 Physical items included. Shipping calculated at checkout."
-                    : "⚡ All digital downloads delivered instantly via email & vault."}
+                <span className="inline-icon-label">
+                  {cart.needsShipping ? (
+                    <>
+                      <IconPackage size={14} />
+                      <span>Physical items included. Shipping calculated at checkout.</span>
+                    </>
+                  ) : (
+                    <>
+                      <IconBolt size={14} />
+                      <span>All digital downloads delivered instantly via email & vault.</span>
+                    </>
+                  )}
                 </span>
               </div>
 

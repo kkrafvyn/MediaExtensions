@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { api, formatGhs } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { FulfillmentBadge, IconCart, IconLock, IconPackage } from "../components/Icons";
 
 export function CartPage() {
   const { cart, refreshCart } = useAuth();
@@ -29,7 +30,9 @@ export function CartPage() {
         <p className="lede">Discover cinematic LUTs, sound effects, camera rigs, and accessories.</p>
 
         <div className="empty" style={{ padding: "3.5rem 2rem" }}>
-          <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🛍️</div>
+          <div className="empty-icon">
+            <IconCart size={48} />
+          </div>
           <p style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: "0.5rem" }}>
             Nothing added to your bag yet
           </p>
@@ -92,7 +95,10 @@ export function CartPage() {
                   </h4>
                   <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.6rem" }}>
                     <span className={`badge ${isDigital ? "badge-digital" : "badge-physical"}`}>
-                      {isDigital ? "⚡ Digital Download" : "📦 Physical Gear"}
+                      <FulfillmentBadge
+                        fulfillment={isDigital ? "digital" : "physical"}
+                        variant="cart"
+                      />
                     </span>
                     <span className="meta">{formatGhs(line.product.pricePesewas)}</span>
                   </div>
@@ -146,7 +152,7 @@ export function CartPage() {
               gap: "0.75rem",
             }}
           >
-            <span style={{ fontSize: "1.25rem" }}>🔒</span>
+            <IconLock size={20} />
             <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)", lineHeight: 1.5 }}>
               All digital asset downloads are saved directly into your customer account downloads vault and can be accessed anytime post-checkout.
             </p>
@@ -166,12 +172,15 @@ export function CartPage() {
 
           <div className="line-item">
             <span>Digital Delivery</span>
-            <span className="badge badge-digital">⚡ Free & Instant</span>
+            <span className="badge badge-digital">
+              <FulfillmentBadge fulfillment="digital" variant="free" />
+            </span>
           </div>
 
           {cart.needsShipping && (
-            <p className="meta" style={{ fontSize: "0.82rem", background: "var(--bg)", padding: "0.75rem", borderRadius: "var(--radius-sm)" }}>
-              📦 Physical gear included. Accra courier and nationwide delivery options calculated next.
+            <p className="meta inline-icon-label" style={{ fontSize: "0.82rem", background: "var(--bg)", padding: "0.75rem", borderRadius: "var(--radius-sm)" }}>
+              <IconPackage size={14} />
+              <span>Physical gear included. Accra courier and nationwide delivery options calculated next.</span>
             </p>
           )}
 

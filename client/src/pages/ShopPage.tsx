@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { ProductCard } from "../components/ProductCard";
 import { QuickViewModal } from "../components/QuickViewModal";
+import { IconClose } from "../components/Icons";
 import type { Category, Product } from "../types";
 
 type SortOption = "featured" | "price-asc" | "price-desc" | "name-asc";
@@ -121,7 +122,7 @@ export function ShopPage() {
                 onClick={() => setQInput("")}
                 aria-label="Clear search"
               >
-                ✕
+                <IconClose size={16} />
               </button>
             )}
           </div>
@@ -139,9 +140,9 @@ export function ShopPage() {
               }}
             >
               <option value="">All Formats</option>
-              <option value="digital">⚡ Digital Only</option>
-              <option value="physical">📦 Physical Only</option>
-              <option value="both">🎁 Bundles</option>
+              <option value="digital">Digital Only</option>
+              <option value="physical">Physical Only</option>
+              <option value="both">Bundles</option>
             </select>
 
             <select
@@ -203,7 +204,7 @@ export function ShopPage() {
                 onClick={resetFilters}
                 style={{ fontSize: "0.82rem", color: "var(--accent)", fontWeight: 600 }}
               >
-                Clear all filters ✕
+                Clear all filters <IconClose size={12} />
               </button>
             )}
           </div>

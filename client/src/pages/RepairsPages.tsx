@@ -3,6 +3,15 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { api, formatGhs } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import type { RepairService } from "../types";
+import {
+  IconBolt,
+  IconCheck,
+  IconChat,
+  IconPhone,
+  IconLaptop,
+  IconCamera,
+  IconWrench,
+} from "../components/Icons";
 
 export function RepairsPage() {
   const [services, setServices] = useState<RepairService[]>([]);
@@ -70,7 +79,9 @@ export function RepairsPage() {
         }}
       >
         <div>
-          <span className="badge badge-repair" style={{ marginBottom: "0.5rem" }}>⚡ Diagnostic Utility</span>
+          <span className="badge badge-repair inline-icon-label" style={{ marginBottom: "0.5rem" }}>
+            <IconBolt size={12} /> Diagnostic Utility
+          </span>
           <h3 style={{ color: "white", fontSize: "1.35rem", margin: "0.25rem 0 0.4rem" }}>
             Validate IMEI Format Before Booking
           </h3>
@@ -211,19 +222,19 @@ export function RepairBookPage() {
           <label style={{ marginBottom: "0.6rem" }}>Select Device Category</label>
           <div className="device-select-grid">
             {[
-              { label: "iPhone", brand: "Apple", icon: "📱" },
-              { label: "Samsung", brand: "Samsung", icon: "📱" },
-              { label: "MacBook", brand: "Apple", icon: "💻" },
-              { label: "iPad / Tablet", brand: "Apple", icon: "📱" },
-              { label: "Camera / Gear", brand: "Sony", icon: "📷" },
-              { label: "Other Device", brand: "", icon: "🛠️" },
+              { label: "iPhone", brand: "Apple", Icon: IconPhone },
+              { label: "Samsung", brand: "Samsung", Icon: IconPhone },
+              { label: "MacBook", brand: "Apple", Icon: IconLaptop },
+              { label: "iPad / Tablet", brand: "Apple", Icon: IconPhone },
+              { label: "Camera / Gear", brand: "Sony", Icon: IconCamera },
+              { label: "Other Device", brand: "", Icon: IconWrench },
             ].map((d) => (
               <div
                 key={d.label}
                 className={`device-chip ${deviceCategory === d.label ? "selected" : ""}`}
                 onClick={() => handleCategorySelect(d.label, d.brand)}
               >
-                <span>{d.icon}</span>
+                <d.Icon size={22} />
                 <span>{d.label}</span>
               </div>
             ))}
@@ -423,7 +434,7 @@ export function RepairStatusPage() {
                 }`}
               >
                 <div className="timeline-icon">
-                  {isCompleted ? "✓" : item.step + 1}
+                  {isCompleted ? <IconCheck size={14} /> : item.step + 1}
                 </div>
                 <span className="timeline-label">{item.label}</span>
               </div>
@@ -487,10 +498,10 @@ export function RepairStatusPage() {
             href={`https://wa.me/233240000000?text=${waText}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn btn-sm"
+            className="btn btn-sm inline-icon-label"
             style={{ background: "#25D366", color: "white", borderRadius: "var(--radius-full)" }}
           >
-            💬 Chat on WhatsApp
+            <IconChat size={16} /> Chat on WhatsApp
           </a>
         </div>
 

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { formatGhs, api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "./Toast";
+import { IconClose, FulfillmentBadge, IconBolt, IconPackage } from "./Icons";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import type { Product } from "../types";
 
@@ -83,7 +84,7 @@ export function QuickViewModal({ product, onClose, onOpenCart }: QuickViewModalP
           onClick={onClose}
           aria-label="Close modal"
         >
-          ✕
+          <IconClose size={18} />
         </button>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "2rem", padding: "2.5rem" }}>
@@ -112,7 +113,7 @@ export function QuickViewModal({ product, onClose, onOpenCart }: QuickViewModalP
                 }`}
                 style={{ marginBottom: "0.5rem" }}
               >
-                {isDigital ? "⚡ Instant Download" : isPhysical ? "📦 Physical Gear" : "🎁 Complete Bundle"}
+                <FulfillmentBadge fulfillment={product.fulfillment} />
               </span>
               <h2 style={{ fontSize: "1.5rem", margin: "0.25rem 0 0.5rem" }}>
                 {product.name}
@@ -133,8 +134,18 @@ export function QuickViewModal({ product, onClose, onOpenCart }: QuickViewModalP
               {product.description}
             </p>
 
-            <div style={{ background: "var(--bg)", padding: "0.75rem 1rem", borderRadius: "var(--radius-sm)", fontSize: "0.82rem", color: "var(--muted)" }}>
-              {isDigital ? "⚡ Delivered instantly after payment + stored in your account vault." : "📦 Ships via express courier across all 16 Ghana regions."}
+            <div className="inline-icon-label" style={{ background: "var(--bg)", padding: "0.75rem 1rem", borderRadius: "var(--radius-sm)", fontSize: "0.82rem", color: "var(--muted)" }}>
+              {isDigital ? (
+                <>
+                  <IconBolt size={14} />
+                  <span>Delivered instantly after payment + stored in your account vault.</span>
+                </>
+              ) : (
+                <>
+                  <IconPackage size={14} />
+                  <span>Ships via express courier across all 16 Ghana regions.</span>
+                </>
+              )}
             </div>
 
             <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", marginTop: "auto", flexWrap: "wrap" }}>

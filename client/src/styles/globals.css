@@ -1692,3 +1692,27 @@ input:focus, select:focus, textarea:focus {
   .hero-copy { padding: 3.5rem 0; }
   .section { padding: 4rem 0; }
 }
+
+/* ==========================================================================
+   Icons
+   ========================================================================== */
+.icon { display: block; flex-shrink: 0; }
+.inline-icon-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.tab-icon-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.empty-icon {
+  color: var(--muted);
+  margin: 0 auto 1rem;
+  opacity: 0.55;
+}
+.timeline-icon svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}

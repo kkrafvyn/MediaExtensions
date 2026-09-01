@@ -4,6 +4,7 @@ import { api, formatGhs } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "../components/Toast";
 import { ProductCard } from "../components/ProductCard";
+import { FulfillmentBadge } from "../components/Icons";
 import type { Product } from "../types";
 
 export function ProductPage() {
@@ -137,7 +138,9 @@ export function ProductPage() {
                   isDigital ? "badge-digital" : isPhysical ? "badge-physical" : "badge-both"
                 }`}
               >
-                {isDigital ? "⚡ Instant Download" : isPhysical ? "📦 Physical Gear" : "🎁 Complete Bundle"}
+                <FulfillmentBadge
+                  fulfillment={isDigital ? "digital" : isPhysical ? "physical" : "both"}
+                />
               </span>
               <span
                 style={{
