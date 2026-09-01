@@ -27,108 +27,179 @@ export function OrderPage() {
     api<OrderResponse>(`/api/orders/${id}`)
       .then(setData)
       .catch((e) => setError(e.message));
-    api<PaymentInfo>("/api/checkout/payment-info").then(setPaymentInfo);
+    api<PaymentInfo>("/api/checkout/payment-info").then(setPaymentInfo).catch(() => undefined);
   }, [id]);
 
   if (error) {
     return (
-      <div className="page container">
-        <p className="error">{error}</p>
+      <div className="page container" style={{ maxWidth: 600 }}>
+        <div className="alert-banner">{error}</div>
+        <Link to="/shop" className="btn btn-dark">
+          Back to Shop
+        </Link>
       </div>
     );
   }
 
   if (!data) {
     return (
-      <div className="page container">
-        <p className="meta">Loading order…</p>
+      <div className="page container" style={{ maxWidth: 600 }}>
+        <div className="product-skeleton" style={{ minHeight: "300px" }} />
       </div>
     );
   }
 
   const { order, downloads } = data;
+  const isPaid = order.status === "paid" || order.status === "fulfilled";
 
   return (
-    <div className="page container">
-      <h1>Order confirmed</h1>
+    <div className="page container" style={{ maxWidth: 840 }}>
+      <p className="eyebrow page-eyebrow">
+        <span className="pulse-dot" />
+        Order #{order.id.slice(0, 8)}
+      </p>
+      <h1>Order Confirmed</h1>
       <p className="lede">
-        Thanks, {order.name}. We emailed instructions to {order.email}. Status:{" "}
-        <strong>{order.status.replaceAll("_", " ")}</strong>
+        Thank you, {order.name}! We have sent your order details and invoice to{" "}
+        <strong>{order.email}</strong>.
       </p>
 
+      {/* Downloads Section (If digital tools exist) */}
+      {downloads.length > 0 && (
+        <div
+          className="panel"
+          style={{
+            background: "linear-gradient(135deg, #0d1713 0%, #172a22 100%)",
+            color: "white",
+            marginBottom: "2rem",
+            border: "1px solid rgba(255, 255, 255, 0.15)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.5rem" }}>
+            <span className="badge badge-digital">⚡ Instant Downloads Ready</span>
+          </div>
+          <h3 style={{ color: "white", fontSize: "1.3rem", margin: "0.25rem 0 1rem" }}>
+            Your Digital Creator Assets
+          </h3>
+          <p style={{ color: "rgba(255, 255, 255, 0.8)", fontSize: "0.92rem", marginBottom: "1.5rem" }}>
+            Click below to download your packs (.zip files containing presets, LUTs, and licenses).
+          </p>
+
+          <div className="stack" style={{ gap: "0.75rem" }}>
+            {downloads.map((d) => (
+              <div
+                key={d.token}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  background: "rgba(255, 255, 255, 0.08)",
+                  padding: "0.85rem 1.2rem",
+                  borderRadius: "var(--radius-sm)",
+                  flexWrap: "wrap",
+                  gap: "0.75rem",
+                }}
+              >
+                <div>
+                  <strong style={{ color: "#ffffff", display: "block" }}>{d.productName}</strong>
+                  <span style={{ fontSize: "0.78rem", color: "rgba(255, 255, 255, 0.6)" }}>
+                    Direct secure download key active
+                  </span>
+                </div>
+                <a
+                  className="btn btn-primary btn-sm"
+                  href={`/api/downloads/${d.token}`}
+                  download
+                  style={{ gap: "0.4rem" }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  Download .ZIP
+                </a>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="split split-2">
+        {/* Left: Purchased Items */}
         <div className="panel stack">
+          <h3 style={{ fontSize: "1.15rem", borderBottom: "1px solid var(--line)", paddingBottom: "0.5rem" }}>
+            Purchased Items
+          </h3>
           {order.items.map((item, i) => (
             <div key={i} className="line-item">
-              <span>
-                {item.name} × {item.quantity}
-              </span>
-              <span>{formatGhs(item.unitPricePesewas * item.quantity)}</span>
+              <div>
+                <strong>{item.name}</strong>
+                <div className="meta">Qty {item.quantity}</div>
+              </div>
+              <strong>{formatGhs(item.unitPricePesewas * item.quantity)}</strong>
             </div>
           ))}
-          <div className="line-item">
-            <strong>Total</strong>
-            <strong>{formatGhs(order.totalPesewas)}</strong>
+          <div className="line-item order-total-hero">
+            <span>Total Amount</span>
+            <span style={{ color: "var(--accent)" }}>{formatGhs(order.totalPesewas)}</span>
           </div>
         </div>
 
+        {/* Right: Payment instructions & Actions */}
         <div className="panel stack">
+          <h3 style={{ fontSize: "1.15rem", borderBottom: "1px solid var(--line)", paddingBottom: "0.5rem" }}>
+            Status & Instructions
+          </h3>
+
+          <div className="line-item">
+            <span>Current Status</span>
+            <span className={`status-chip ${isPaid ? "status-paid" : "status-pending"}`}>
+              {order.status.replaceAll("_", " ")}
+            </span>
+          </div>
+
+          <div className="line-item">
+            <span>Payment Method</span>
+            <strong style={{ textTransform: "capitalize" }}>{order.paymentMethod}</strong>
+          </div>
+
           {(order.status === "pending_payment" || order.status === "awaiting_pickup") && (
-            <>
-              <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Complete payment</h2>
+            <div style={{ background: "var(--bg)", padding: "1rem", borderRadius: "var(--radius-sm)", marginTop: "0.5rem" }}>
+              <strong style={{ display: "block", fontSize: "0.9rem", marginBottom: "0.35rem" }}>
+                How to finalize payment:
+              </strong>
               {order.paymentMethod === "momo" && paymentInfo && (
-                <p className="meta">
-                  Send {formatGhs(order.totalPesewas)} via {paymentInfo.momo.network} to{" "}
-                  {paymentInfo.momo.number} ({paymentInfo.momo.name}). Use your name as reference.
+                <p className="meta" style={{ fontSize: "0.85rem", lineHeight: 1.5 }}>
+                  Send <strong>{formatGhs(order.totalPesewas)}</strong> via <strong>{paymentInfo.momo.network}</strong> to{" "}
+                  <strong>{paymentInfo.momo.number}</strong> ({paymentInfo.momo.name}). Use <strong>{order.name}</strong> as reference.
                 </p>
               )}
               {order.paymentMethod === "bank" && paymentInfo && (
-                <p className="meta">
-                  Transfer {formatGhs(order.totalPesewas)} to {paymentInfo.bank.bankName} ·{" "}
-                  {paymentInfo.bank.accountNumber} · {paymentInfo.bank.accountName}.
+                <p className="meta" style={{ fontSize: "0.85rem", lineHeight: 1.5 }}>
+                  Transfer <strong>{formatGhs(order.totalPesewas)}</strong> to <strong>{paymentInfo.bank.bankName}</strong> · Acc:{" "}
+                  <strong>{paymentInfo.bank.accountNumber}</strong> ({paymentInfo.bank.accountName}).
                 </p>
               )}
               {order.paymentMethod === "pickup" && (
-                <p className="meta">Pay cash when you pick up your order in Accra.</p>
-              )}
-              {order.paymentMethod === "paystack" && (
-                <p className="meta">
-                  If Paystack didn’t finish, use Track order with your email and order ID, or contact
-                  support.
+                <p className="meta" style={{ fontSize: "0.85rem", lineHeight: 1.5 }}>
+                  Pay cash or MoMo upon collection at our Accra hub.
                 </p>
               )}
-              <p className="meta">Our team will mark the order paid once funds are confirmed.</p>
-            </>
+            </div>
           )}
 
-          {downloads.length > 0 && (
-            <>
-              <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Downloads</h2>
-              {downloads.map((d) => (
-                <a
-                  key={d.token}
-                  className="btn btn-light"
-                  href={`/api/downloads/${d.token}`}
-                  style={{ textAlign: "center" }}
-                >
-                  Download {d.productName}
-                </a>
-              ))}
-            </>
-          )}
+          <div className="cta-row" style={{ marginTop: "1rem" }}>
+            <Link to={`/order/${order.id}/receipt`} className="btn btn-light" style={{ flex: 1 }}>
+              Print Receipt
+            </Link>
+            <Link to="/track" className="btn btn-light" style={{ flex: 1 }}>
+              Track Order
+            </Link>
+          </div>
 
-          <Link
-            to={`/order/${order.id}/receipt`}
-            className="btn btn-light"
-            style={{ textAlign: "center" }}
-          >
-            Print receipt
-          </Link>
-          <Link to="/track" className="btn btn-light" style={{ textAlign: "center" }}>
-            Track order later
-          </Link>
-          <Link to="/shop" className="btn btn-dark" style={{ textAlign: "center" }}>
-            Continue shopping
+          <Link to="/shop" className="btn btn-dark" style={{ width: "100%", marginTop: "0.5rem" }}>
+            Continue Shopping
           </Link>
         </div>
       </div>

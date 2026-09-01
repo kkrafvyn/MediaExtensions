@@ -57,7 +57,7 @@ export function OrderReceiptPage() {
 
       <article className="receipt panel stack">
         <header className="receipt-head">
-          <img src="/logo.svg" alt="Media Extensions" className="receipt-logo" />
+          <strong style={{ fontSize: "1.3rem", fontFamily: "var(--font-display)", fontWeight: 800 }}>Media Extensions</strong>
           <div className="meta">
             {store?.address ?? "Accra, Ghana"}
             {store?.phone ? ` · ${store.phone}` : ""}
@@ -175,7 +175,7 @@ export function RepairReceiptPage() {
 
       <article className="receipt panel stack">
         <header className="receipt-head">
-          <img src="/logo.svg" alt="Media Extensions" className="receipt-logo" />
+          <strong style={{ fontSize: "1.3rem", fontFamily: "var(--font-display)", fontWeight: 800 }}>Media Extensions</strong>
           <div className="meta">GSM repair receipt · Accra, Ghana</div>
         </header>
 

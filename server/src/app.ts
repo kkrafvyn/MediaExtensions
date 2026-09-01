@@ -2,7 +2,7 @@ import "dotenv/config";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import express from "express";
+import express, { type Request, type Response } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import session from "express-session";
@@ -24,12 +24,18 @@ import downloadRoutes from "./routes/downloads.js";
 import repairRoutes from "./routes/repairs.js";
 import staffRoutes from "./routes/staff.js";
 import contactRoutes from "./routes/contact.js";
+import { handlePaystackWebhook } from "./routes/paystackWebhook.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = path.resolve(__dirname, "../storage/uploads");
+const downloadsDir = path.resolve(__dirname, "../storage/downloads");
 const clientDist = path.resolve(__dirname, "../../client/dist");
 const isProd = process.env.NODE_ENV === "production";
 const CLIENT_URL = process.env.CLIENT_URL ?? "http://localhost:5173";
+
+if (isProd && !process.env.SESSION_SECRET) {
+  throw new Error("SESSION_SECRET must be set in production");
+}
 
 const allowedOrigins = new Set(
   [
@@ -42,6 +48,7 @@ const allowedOrigins = new Set(
 );
 
 fs.mkdirSync(uploadsDir, { recursive: true });
+fs.mkdirSync(downloadsDir, { recursive: true });
 
 export const app = express();
 const PgSession = connectPgSimple(session);
@@ -67,6 +74,14 @@ app.use(
     credentials: true,
   }),
 );
+app.post(
+  "/api/checkout/paystack/webhook",
+  express.raw({ type: "application/json" }),
+  (req: Request, res: Response) => {
+    void handlePaystackWebhook(req, res);
+  },
+);
+
 app.use(express.json());
 app.use(cookieParser());
 app.use(
@@ -141,8 +156,12 @@ app.get("/api/meta", (_req, res) => {
     },
     pickup: payments.pickup,
     store: payments.store,
+    storePhone: payments.store.phone,
+    storeWhatsApp: payments.store.whatsapp,
+    storeEmail: payments.store.email,
     paystackEnabled: payments.paystackEnabled,
     paystackPublicKey: payments.paystackPublicKey,
+    lowStockThreshold: Number(process.env.LOW_STOCK_THRESHOLD ?? 5),
   });
 });
 

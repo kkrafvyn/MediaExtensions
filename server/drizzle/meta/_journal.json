@@ -22,6 +22,13 @@
       "when": 1786290745405,
       "tag": "0002_tiresome_the_professor",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786291000000,
+      "tag": "0003_payment_records",
+      "breakpoints": true
     }
   ]
 }

@@ -25,3 +25,10 @@ rmSync(www, { recursive: true, force: true });
 mkdirSync(www, { recursive: true });
 cpSync(dist, www, { recursive: true });
 console.log("Copied client/dist -> server/www");
+
+if (process.env.RUN_DB_MIGRATE === "1" && process.env.DATABASE_URL) {
+  console.log("Running database migrations…");
+  run("npm", ["run", "db:migrate", "-w", "server"], root);
+} else {
+  console.log("Skipping db:migrate (set RUN_DB_MIGRATE=1 to enable during build)");
+}

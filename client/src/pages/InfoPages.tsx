@@ -91,9 +91,9 @@ export function ContactPage() {
     }
   }
 
-  const storePhone = meta?.storePhone ?? meta?.storeWhatsApp ?? "+233 24 000 0000";
-  const storeEmail = meta?.storeEmail ?? "hello@mediaextensions.gh";
-  const hours = meta?.pickup?.hours ?? "Mon–Sat, 9:00–18:00 GMT";
+  const storePhone = meta?.storePhone || meta?.storeWhatsApp;
+  const storeEmail = meta?.storeEmail;
+  const hours = meta?.pickup?.hours ?? "Monday–Saturday, 9:00–18:00 GMT";
 
   return (
     <InfoPage
@@ -105,24 +105,24 @@ export function ContactPage() {
           <div className="form-grid two">
             <label>
               Name
-              <input value={name} onChange={(e) => setName(e.target.value)} required />
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" required />
             </label>
             <label>
               Phone
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone number" />
             </label>
           </div>
           <label>
             Email
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email.com" required />
           </label>
           <label>
             Topic
             <select value={topic} onChange={(e) => setTopic(e.target.value)}>
-              <option value="general">General</option>
-              <option value="order">Order support</option>
-              <option value="repair">GSM repair</option>
-              <option value="wholesale">Wholesale / partnership</option>
+              <option value="general">General Inquiry</option>
+              <option value="order">Order Support & Downloads</option>
+              <option value="repair">GSM Hardware Repair</option>
+              <option value="wholesale">Wholesale & Bulk Orders</option>
             </select>
           </label>
           <label>
@@ -131,31 +131,36 @@ export function ContactPage() {
               rows={5}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
+              placeholder="How can our team help you?"
               required
               minLength={10}
             />
           </label>
           {error && <p className="error">{error}</p>}
           {status === "sent" && <p className="success">Message sent. We’ll reply soon.</p>}
-          <button className="btn btn-dark" type="submit" disabled={status === "sending"}>
-            {status === "sending" ? "Sending…" : "Send message"}
+          <button className="btn btn-primary" type="submit" disabled={status === "sending"}>
+            {status === "sending" ? "Sending…" : "Send Message"}
           </button>
         </form>
 
         <div className="panel stack">
-          <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Direct lines</h2>
-          <p className="meta">
-            WhatsApp / call: <strong>{storePhone}</strong>
-          </p>
-          <p className="meta">
-            Email: <strong>{storeEmail}</strong>
-          </p>
-          <p className="meta">Hours: {hours}</p>
+          <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Customer Support</h2>
+          {storePhone && (
+            <p className="meta">
+              WhatsApp / Call: <strong>{storePhone}</strong>
+            </p>
+          )}
+          {storeEmail && (
+            <p className="meta">
+              Email: <strong>{storeEmail}</strong>
+            </p>
+          )}
+          <p className="meta">Studio Hours: {hours}</p>
           <Link to="/pickup" className="btn btn-light" style={{ textAlign: "center" }}>
-            Visit / pickup info
+            Visit / Pickup Info
           </Link>
           <Link to="/track" className="btn btn-light" style={{ textAlign: "center" }}>
-            Track an order
+            Track an Order
           </Link>
         </div>
       </div>

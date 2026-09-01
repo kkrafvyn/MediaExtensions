@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, asc, eq, ilike, or } from "drizzle-orm";
+import { and, asc, count, eq, ilike, or } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { categories, products } from "../db/schema.js";
 
@@ -14,7 +14,7 @@ router.get("/categories", async (_req, res) => {
 });
 
 router.get("/", async (req, res) => {
-  const { category, fulfillment, q, featured } = req.query;
+  const { category, fulfillment, q, featured, page: pageRaw, limit: limitRaw } = req.query;
   const conditions = [eq(products.active, true)];
 
   if (typeof category === "string" && category) {
@@ -35,13 +35,31 @@ router.get("/", async (req, res) => {
     );
   }
 
+  const page = Math.max(1, Number(pageRaw) || 1);
+  const limit = Math.min(48, Math.max(1, Number(limitRaw) || 12));
+  const offset = (page - 1) * limit;
+  const where = and(...conditions);
+
+  const [totalRow] = await db.select({ total: count() }).from(products).where(where);
+  const total = totalRow?.total ?? 0;
+
   const rows = await db.query.products.findMany({
-    where: and(...conditions),
+    where,
     with: { category: true },
     orderBy: [asc(products.name)],
+    limit,
+    offset,
   });
 
-  res.json({ products: rows });
+  res.json({
+    products: rows,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    },
+  });
 });
 
 router.get("/:slug", async (req, res) => {

@@ -2,7 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { desc } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { contactMessages } from "../db/schema.js";
+import { contactMessages, notifications } from "../db/schema.js";
+import { notifyContactMessage, notifyNewsletterSignup } from "../lib/notify.js";
 import { requireRoles } from "../middleware/auth.js";
 
 const router = Router();
@@ -32,7 +33,37 @@ router.post("/", async (req, res) => {
     })
     .returning();
 
+  void notifyContactMessage({
+    id: row.id,
+    name: parsed.data.name,
+    email: parsed.data.email,
+    phone: parsed.data.phone,
+    topic: parsed.data.topic,
+    message: parsed.data.message,
+  }).catch((err) => console.error("[notify:contact]", err));
+
   res.status(201).json({ ok: true, id: row.id });
+});
+
+router.post("/newsletter", async (req, res) => {
+  const schema = z.object({ email: z.string().email() });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Valid email required" });
+  }
+
+  const email = parsed.data.email.toLowerCase();
+  await db.insert(notifications).values({
+    channel: "log",
+    recipient: email,
+    subject: "Newsletter signup",
+    body: `Newsletter subscription: ${email}`,
+    meta: { source: "footer" },
+  });
+
+  void notifyNewsletterSignup(email).catch((err) => console.error("[notify:newsletter]", err));
+
+  res.status(201).json({ ok: true });
 });
 
 router.get("/", requireRoles("admin", "manager"), async (_req, res) => {

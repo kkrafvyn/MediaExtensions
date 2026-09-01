@@ -24,6 +24,7 @@ export type Product = {
   images: string[];
   fulfillment: "digital" | "physical" | "both";
   stock: number;
+  digitalAssetPath?: string | null;
   featured: boolean;
   active?: boolean;
   category?: Category | null;
@@ -79,7 +80,9 @@ export type SiteMeta = {
   storePhone?: string;
   storeWhatsApp?: string;
   storeEmail?: string;
+  store?: { phone?: string; whatsapp?: string; email?: string };
   paystackPublicKey?: string | null;
+  paystackEnabled?: boolean;
   lowStockThreshold?: number;
 };
 

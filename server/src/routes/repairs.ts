@@ -1,8 +1,9 @@
 import { Router } from "express";
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, ilike } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/index.js";
 import { repairOrders, repairServices } from "../db/schema.js";
+import { notifyRepairBooked } from "../lib/notify.js";
 import {
   getCartSessionId,
   requireAuth,
@@ -38,6 +39,7 @@ router.post("/book", async (req: AuthedRequest, res) => {
   }
 
   let quotePesewas: number | null = null;
+  let serviceName: string | null = null;
   if (parsed.data.serviceId) {
     const service = await db.query.repairServices.findFirst({
       where: eq(repairServices.id, parsed.data.serviceId),
@@ -46,6 +48,7 @@ router.post("/book", async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: "Unknown repair service" });
     }
     quotePesewas = service.pricePesewas;
+    serviceName = service.name;
   }
 
   const [row] = await db
@@ -68,7 +71,46 @@ router.post("/book", async (req: AuthedRequest, res) => {
     })
     .returning();
 
+  void notifyRepairBooked({
+    ...row,
+    serviceName,
+  }).catch((err) => console.error("[notify:repair]", err));
+
   res.status(201).json({ repair: row });
+});
+
+router.post("/track", async (req, res) => {
+  const schema = z.object({
+    email: z.string().email(),
+    repairId: z.string().min(4),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Email and repair ID required" });
+  }
+
+  const email = parsed.data.email.toLowerCase();
+  const repairId = parsed.data.repairId.trim().toLowerCase();
+
+  const candidates = await db.query.repairOrders.findMany({
+    where: ilike(repairOrders.email, email),
+    with: { service: true },
+    orderBy: [desc(repairOrders.createdAt)],
+    limit: 50,
+  });
+
+  const repair = candidates.find(
+    (r) =>
+      r.id.toLowerCase() === repairId ||
+      r.id.toLowerCase().startsWith(repairId) ||
+      r.id.slice(0, 8).toLowerCase() === repairId,
+  );
+
+  if (!repair) {
+    return res.status(404).json({ error: "Repair not found for that email and ticket ID" });
+  }
+
+  res.json({ repair });
 });
 
 router.get("/mine", requireAuth, async (req: AuthedRequest, res) => {

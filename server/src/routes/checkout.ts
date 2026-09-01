@@ -25,9 +25,9 @@ const shippingSchema = z.object({
 const checkoutSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1),
-  phone: z.string().optional(),
+  phone: z.string().min(8),
   paymentMethod: z.enum(["momo", "bank", "pickup", "paystack"]),
-  paymentNote: z.string().optional(),
+  paymentNote: z.string().max(160).optional(),
   shipping: shippingSchema.optional(),
 });
 
@@ -76,6 +76,41 @@ router.post("/", async (req: AuthedRequest, res) => {
     ),
   );
 
+  if (productRows.some((product) => !product || !product.active)) {
+    return res.status(409).json({ error: "One or more items are no longer available" });
+  }
+  if (
+    productRows.some(
+      (product, index) =>
+        product &&
+        product.fulfillment !== "digital" &&
+        product.stock < cart.items[index].quantity,
+    )
+  ) {
+    return res.status(409).json({ error: "One or more items no longer have enough stock" });
+  }
+
+  // Initialize online payment before consuming the cart. A provider failure leaves
+  // the customer's basket intact so they can retry or choose another method.
+  let paystackInit: Awaited<ReturnType<typeof initializeTransaction>> = null;
+  if (parsed.data.paymentMethod === "paystack" && paystackReference) {
+    try {
+      paystackInit = await initializeTransaction({
+        email: parsed.data.email.toLowerCase(),
+        amountPesewas: totalPesewas,
+        reference: paystackReference,
+      });
+    } catch (err) {
+      console.error("[paystack] initialize error", err);
+      return res.status(502).json({
+        error: err instanceof Error ? err.message : "Unable to start secure payment",
+      });
+    }
+    if (!paystackInit) {
+      return res.status(503).json({ error: "Paystack is not configured" });
+    }
+  }
+
   const [order] = await db
     .insert(orders)
     .values({
@@ -115,29 +150,7 @@ router.post("/", async (req: AuthedRequest, res) => {
   await clearCart(cart.cartId);
   await notifyOrderEvent(order, "created");
 
-  if (parsed.data.paymentMethod === "paystack" && paystackReference) {
-    try {
-      const init = await initializeTransaction({
-        email: order.email,
-        amountPesewas: order.totalPesewas,
-        reference: paystackReference,
-        metadata: { orderId: order.id },
-      });
-
-      if (!init) {
-        return res.status(503).json({
-          error: "Paystack is not configured",
-          order: {
-            id: order.id,
-            status: order.status,
-            paymentMethod: order.paymentMethod,
-            totalPesewas: order.totalPesewas,
-            currency: order.currency,
-            paystackReference,
-          },
-        });
-      }
-
+  if (paystackInit) {
       return res.status(201).json({
         order: {
           id: order.id,
@@ -147,25 +160,11 @@ router.post("/", async (req: AuthedRequest, res) => {
           currency: order.currency,
           paystackReference,
         },
-        authorizationUrl: init.authorization_url,
-        authorization_url: init.authorization_url,
-        access_code: init.access_code,
-        reference: init.reference,
+        authorizationUrl: paystackInit.authorization_url,
+        authorization_url: paystackInit.authorization_url,
+        access_code: paystackInit.access_code,
+        reference: paystackInit.reference,
       });
-    } catch (err) {
-      console.error("[paystack] initialize error", err);
-      return res.status(502).json({
-        error: err instanceof Error ? err.message : "Paystack initialize failed",
-        order: {
-          id: order.id,
-          status: order.status,
-          paymentMethod: order.paymentMethod,
-          totalPesewas: order.totalPesewas,
-          currency: order.currency,
-          paystackReference,
-        },
-      });
-    }
   }
 
   res.status(201).json({

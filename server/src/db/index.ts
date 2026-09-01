@@ -10,4 +10,8 @@ if (!process.env.DATABASE_URL) {
 }
 
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+pool.on("error", (err: Error) => {
+  console.warn("[database pool]", err?.message || err);
+});
+
 export const db = drizzle(pool, { schema });

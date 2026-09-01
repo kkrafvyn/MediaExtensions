@@ -18,6 +18,7 @@ import {
 } from "./pages/AuthPages";
 import { AccountPage } from "./pages/AccountPage";
 import { RepairsPage, RepairBookPage, RepairStatusPage } from "./pages/RepairsPages";
+import { ImeiCheckPage } from "./pages/ImeiCheckPage";
 import {
   AboutPage,
   ContactPage,
@@ -66,6 +67,7 @@ export default function App() {
             <Route path="repairs/book" element={<RepairBookPage />} />
             <Route path="repairs/status/:id" element={<RepairStatusPage />} />
             <Route path="repairs/status/:id/receipt" element={<RepairReceiptPage />} />
+            <Route path="imei-check" element={<ImeiCheckPage />} />
             <Route path="about" element={<AboutPage />} />
             <Route path="contact" element={<ContactPage />} />
             <Route path="shipping" element={<ShippingPage />} />

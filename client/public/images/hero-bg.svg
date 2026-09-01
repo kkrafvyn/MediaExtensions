@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <!-- Deep Gradient Background -->
+    <radialGradient id="bgGlow1" cx="75%" cy="25%" r="65%">
+      <stop offset="0%" stop-color="#e04f16" stop-opacity="0.32" />
+      <stop offset="45%" stop-color="#9a2f07" stop-opacity="0.12" />
+      <stop offset="100%" stop-color="#070e0a" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="bgGlow2" cx="20%" cy="80%" r="55%">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.18" />
+      <stop offset="50%" stop-color="#b45309" stop-opacity="0.06" />
+      <stop offset="100%" stop-color="#070e0a" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="lensGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.15" />
+      <stop offset="50%" stop-color="#f59e0b" stop-opacity="0.08" />
+      <stop offset="100%" stop-color="#e04f16" stop-opacity="0.02" />
+    </linearGradient>
+    <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M 60 0 L 0 0 0 60" fill="none" stroke="#ffffff" stroke-opacity="0.03" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <!-- Base Darkness -->
+  <rect width="1920" height="1080" fill="#080f0b"/>
+  <rect width="1920" height="1080" fill="url(#grid)"/>
+
+  <!-- Atmospheric Glows -->
+  <rect width="1920" height="1080" fill="url(#bgGlow1)"/>
+  <rect width="1920" height="1080" fill="url(#bgGlow2)"/>
+
+  <!-- Cinematic Camera / Lens Graphic Silhouette in Background -->
+  <g transform="translate(1100, 180)" opacity="0.35">
+    <!-- Camera Body Silhouette -->
+    <rect x="120" y="100" width="460" height="340" rx="36" fill="#121d17" stroke="#ffffff" stroke-opacity="0.12" stroke-width="2"/>
+    <rect x="200" y="50" width="180" height="50" rx="12" fill="#18251e" stroke="#ffffff" stroke-opacity="0.1" stroke-width="1.5"/>
+    <circle cx="480" cy="80" r="16" fill="#e04f16" opacity="0.6"/>
+    
+    <!-- Big Mattebox / Lens Rings -->
+    <circle cx="350" cy="270" r="180" fill="none" stroke="url(#lensGrad)" stroke-width="32"/>
+    <circle cx="350" cy="270" r="140" fill="none" stroke="#f6c258" stroke-opacity="0.2" stroke-width="6"/>
+    <circle cx="350" cy="270" r="110" fill="#0d1712" stroke="#e04f16" stroke-opacity="0.3" stroke-width="4"/>
+    <circle cx="350" cy="270" r="60" fill="#080e0a" stroke="#ffffff" stroke-opacity="0.15" stroke-width="2"/>
+
+    <!-- Lens Flare Elements -->
+    <line x1="-100" y1="270" x2="800" y2="270" stroke="#f6c258" stroke-opacity="0.15" stroke-width="1.5" stroke-dasharray="8 12"/>
+    <circle cx="580" cy="270" r="28" fill="#f6c258" fill-opacity="0.08"/>
+    <circle cx="120" cy="270" r="44" fill="#e04f16" fill-opacity="0.06"/>
+  </g>
+
+  <!-- Technical Audio / Film Wave lines -->
+  <g opacity="0.18" stroke="#ffffff" stroke-width="1.5" fill="none">
+    <path d="M 0,850 Q 300,750 600,850 T 1200,850 T 1800,850" stroke-opacity="0.15"/>
+    <path d="M 0,880 Q 400,820 800,880 T 1600,880" stroke-opacity="0.1"/>
+  </g>
+</svg>

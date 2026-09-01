@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, NavLink, Outlet } from "react-router-dom";
 import { api, apiUpload, formatGhs } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -18,39 +18,43 @@ export function StaffLayout() {
   return (
     <StaffGuard>
       <div className="page container">
-        <h1>Staff</h1>
-        <p className="lede">Welcome, {user?.name}. Manage orders, products, and repairs.</p>
+        <p className="eyebrow page-eyebrow">
+          <span className="pulse-dot" />
+          Internal Workspace
+        </p>
+        <h1>Staff Control Hub</h1>
+        <p className="lede">Welcome back, {user?.name}. Manage orders, digital inventory, and GSM repairs.</p>
         <div className="staff-nav">
-          <NavLink to="/staff" end className="btn btn-light">
+          <NavLink to="/staff" end className={({ isActive }) => `btn btn-sm ${isActive ? "btn-primary" : "btn-light"}`}>
             Dashboard
           </NavLink>
-          <NavLink to="/staff/orders" className="btn btn-light">
+          <NavLink to="/staff/orders" className={({ isActive }) => `btn btn-sm ${isActive ? "btn-primary" : "btn-light"}`}>
             Orders
           </NavLink>
-          <NavLink to="/staff/products" className="btn btn-light">
-            Products
+          <NavLink to="/staff/products" className={({ isActive }) => `btn btn-sm ${isActive ? "btn-primary" : "btn-light"}`}>
+            Products & Assets
           </NavLink>
-          <NavLink to="/staff/repairs" className="btn btn-light">
-            Repairs
+          <NavLink to="/staff/repairs" className={({ isActive }) => `btn btn-sm ${isActive ? "btn-primary" : "btn-light"}`}>
+            GSM Repairs
           </NavLink>
-          <NavLink to="/staff/services" className="btn btn-light">
-            Services
+          <NavLink to="/staff/services" className={({ isActive }) => `btn btn-sm ${isActive ? "btn-primary" : "btn-light"}`}>
+            Repair Services
           </NavLink>
-          <NavLink to="/staff/messages" className="btn btn-light">
+          <NavLink to="/staff/messages" className={({ isActive }) => `btn btn-sm ${isActive ? "btn-primary" : "btn-light"}`}>
             Messages
           </NavLink>
           {user?.role === "admin" && (
             <>
-              <NavLink to="/staff/categories" className="btn btn-light">
+              <NavLink to="/staff/categories" className={({ isActive }) => `btn btn-sm ${isActive ? "btn-primary" : "btn-light"}`}>
                 Categories
               </NavLink>
-              <NavLink to="/staff/users" className="btn btn-light">
-                Users
+              <NavLink to="/staff/users" className={({ isActive }) => `btn btn-sm ${isActive ? "btn-primary" : "btn-light"}`}>
+                Staff & Users
               </NavLink>
             </>
           )}
-          <Link to="/" className="btn btn-dark">
-            Storefront
+          <Link to="/" className="btn btn-dark btn-sm">
+            ← View Storefront
           </Link>
         </div>
         <Outlet />
@@ -89,23 +93,23 @@ export function StaffDashboard() {
         </div>
       )}
 
-      <div className="product-grid">
-        <div className="panel">
-          <div className="meta">Orders</div>
-          <h2 style={{ margin: "0.25rem 0 0" }}>{dash.stats.orders}</h2>
+      <div className="staff-stats-grid">
+        <div className="stat-widget">
+          <span className="stat-title">Total Orders</span>
+          <span className="stat-number">{dash.stats.orders}</span>
         </div>
-        <div className="panel">
-          <div className="meta">Repairs</div>
-          <h2 style={{ margin: "0.25rem 0 0" }}>{dash.stats.repairs}</h2>
+        <div className="stat-widget">
+          <span className="stat-title">Active GSM Repairs</span>
+          <span className="stat-number">{dash.stats.repairs}</span>
         </div>
-        <div className="panel">
-          <div className="meta">Products</div>
-          <h2 style={{ margin: "0.25rem 0 0" }}>{dash.stats.products}</h2>
+        <div className="stat-widget">
+          <span className="stat-title">Products in Catalog</span>
+          <span className="stat-number">{dash.stats.products}</span>
         </div>
         {revenue != null && (
-          <div className="panel">
-            <div className="meta">Paid revenue</div>
-            <h2 style={{ margin: "0.25rem 0 0" }}>{formatGhs(revenue)}</h2>
+          <div className="stat-widget" style={{ borderColor: "rgba(16, 185, 129, 0.3)", background: "var(--emerald-soft)" }}>
+            <span className="stat-title" style={{ color: "var(--emerald)" }}>Verified Paid Revenue</span>
+            <span className="stat-number" style={{ color: "var(--emerald)" }}>{formatGhs(revenue)}</span>
           </div>
         )}
       </div>
@@ -153,19 +157,15 @@ export function StaffDashboard() {
 }
 
 export function StaffOrders() {
-  const [orders, setOrders] = useState<
-    Array<{
-      id: string;
-      name: string;
-      email: string;
-      status: string;
-      paymentMethod: string;
-      totalPesewas: number;
-    }>
-  >([]);
+  type Payment = { id: string; method: string; amountPesewas: number; reference: string | null; receivedAt: string; recordedBy?: { name: string } | null };
+  type StaffOrder = { id: string; name: string; email: string; status: string; paymentMethod: string; totalPesewas: number; payments: Payment[] };
+  const [orders, setOrders] = useState<StaffOrder[]>([]);
+  const [recordingFor, setRecordingFor] = useState<string | null>(null);
+  const [paymentError, setPaymentError] = useState("");
+  const [payment, setPayment] = useState({ method: "cash", amount: "", reference: "", notes: "" });
 
   async function load() {
-    const d = await api<{ orders: typeof orders }>("/api/staff/orders");
+    const d = await api<{ orders: StaffOrder[] }>("/api/staff/orders");
     setOrders(d.orders);
   }
 
@@ -181,6 +181,25 @@ export function StaffOrders() {
     await load();
   }
 
+  function openPayment(order: StaffOrder) {
+    const paid = order.payments.reduce((sum, item) => sum + item.amountPesewas, 0);
+    setRecordingFor(order.id);
+    setPayment({ method: order.paymentMethod === "momo" || order.paymentMethod === "bank" ? order.paymentMethod : "cash", amount: String((order.totalPesewas - paid) / 100), reference: "", notes: "" });
+    setPaymentError("");
+  }
+
+  async function recordPayment(e: FormEvent, order: StaffOrder) {
+    e.preventDefault();
+    const amountPesewas = Math.round(Number(payment.amount) * 100);
+    if (!Number.isInteger(amountPesewas) || amountPesewas <= 0) { setPaymentError("Enter a valid payment amount."); return; }
+    setPaymentError("");
+    try {
+      await api(`/api/staff/orders/${order.id}/payments`, { method: "POST", body: JSON.stringify({ method: payment.method, amountPesewas, reference: payment.reference || undefined, notes: payment.notes || undefined }) });
+      setRecordingFor(null);
+      await load();
+    } catch (err) { setPaymentError(err instanceof Error ? err.message : "Could not record payment"); }
+  }
+
   return (
     <div className="panel" style={{ overflowX: "auto" }}>
       <table className="table">
@@ -194,7 +213,8 @@ export function StaffOrders() {
         </thead>
         <tbody>
           {orders.map((o) => (
-            <tr key={o.id}>
+            <Fragment key={o.id}>
+            <tr>
               <td>
                 <strong>{o.name}</strong>
                 <div className="meta">
@@ -202,8 +222,9 @@ export function StaffOrders() {
                 </div>
               </td>
               <td>{formatGhs(o.totalPesewas)}</td>
-              <td>{o.status.replaceAll("_", " ")}</td>
+              <td><span className={`status-chip status-${o.status}`}>{o.status.replaceAll("_", " ")}</span>{o.payments.length > 0 && <div className="payment-total">Paid {formatGhs(o.payments.reduce((sum, item) => sum + item.amountPesewas, 0))}</div>}</td>
               <td style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
+                {o.status !== "cancelled" && o.status !== "paid" && o.status !== "fulfilled" && <button className="btn btn-dark" onClick={() => openPayment(o)}>Record payment</button>}
                 <button className="btn btn-light" onClick={() => setStatus(o.id, "paid")}>
                   Mark paid
                 </button>
@@ -218,6 +239,8 @@ export function StaffOrders() {
                 </Link>
               </td>
             </tr>
+            {recordingFor === o.id && <tr className="payment-entry-row"><td colSpan={4}><form className="offline-payment-form" onSubmit={(e) => recordPayment(e, o)}><strong>Record an offline payment</strong><label>Method<select value={payment.method} onChange={(e) => setPayment({ ...payment, method: e.target.value })}><option value="cash">Cash at counter</option><option value="momo">Mobile Money</option><option value="bank">Bank transfer</option><option value="other">Other</option></select></label><label>Amount (GHS)<input value={payment.amount} onChange={(e) => setPayment({ ...payment, amount: e.target.value })} type="number" min="0.01" step="0.01" required /></label><label>Reference <span className="meta">(optional)</span><input value={payment.reference} onChange={(e) => setPayment({ ...payment, reference: e.target.value })} placeholder="Receipt or transaction ID" /></label><label>Notes <span className="meta">(optional)</span><input value={payment.notes} onChange={(e) => setPayment({ ...payment, notes: e.target.value })} /></label>{paymentError && <p className="error">{paymentError}</p>}<button className="btn btn-primary" type="submit">Save payment</button><button className="btn btn-light" type="button" onClick={() => setRecordingFor(null)}>Cancel</button></form></td></tr>}
+            </Fragment>
           ))}
         </tbody>
       </table>
@@ -232,6 +255,13 @@ async function uploadStaffImage(file: File): Promise<string> {
   return res.url;
 }
 
+async function uploadDigitalAsset(file: File): Promise<string> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await apiUpload<{ path: string }>("/api/staff/uploads/digital", fd);
+  return res.path;
+}
+
 export function StaffProducts() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -244,6 +274,7 @@ export function StaffProducts() {
     stock: number;
     categoryId: string;
     imageUrl: string;
+    digitalAssetPath: string;
   }>({
     name: "",
     description: "",
@@ -252,7 +283,9 @@ export function StaffProducts() {
     stock: 10,
     categoryId: "",
     imageUrl: "",
+    digitalAssetPath: "",
   });
+  const [uploadingDigitalId, setUploadingDigitalId] = useState<string | null>(null);
 
   async function load() {
     const [p, c] = await Promise.all([
@@ -293,6 +326,31 @@ export function StaffProducts() {
     }
   }
 
+  async function onCreateDigital(file: File | null) {
+    if (!file) return;
+    try {
+      const assetPath = await uploadDigitalAsset(file);
+      setForm((f) => ({ ...f, digitalAssetPath: assetPath }));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function onProductDigital(product: Product, file: File | null) {
+    if (!file) return;
+    setUploadingDigitalId(product.id);
+    try {
+      const assetPath = await uploadDigitalAsset(file);
+      await api(`/api/staff/products/${product.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ digitalAssetPath: assetPath }),
+      });
+      await load();
+    } finally {
+      setUploadingDigitalId(null);
+    }
+  }
+
   async function create(e: FormEvent) {
     e.preventDefault();
     await api("/api/staff/products", {
@@ -304,10 +362,11 @@ export function StaffProducts() {
         fulfillment: form.fulfillment,
         stock: form.stock,
         categoryId: form.categoryId || null,
-        images: [form.imageUrl || "/images/products/lut-pack.svg"],
+        images: form.imageUrl ? [form.imageUrl] : [],
+        digitalAssetPath: form.digitalAssetPath || null,
       }),
     });
-    setForm({ ...form, name: "", description: "", imageUrl: "" });
+    setForm({ ...form, name: "", description: "", imageUrl: "", digitalAssetPath: "" });
     await load();
   }
 
@@ -382,6 +441,18 @@ export function StaffProducts() {
             <span className="meta">Uploaded: {form.imageUrl}</span>
           )}
         </label>
+        {(form.fulfillment === "digital" || form.fulfillment === "both") && (
+          <label>
+            Digital download file (.zip, etc.)
+            <input
+              type="file"
+              onChange={(e) => onCreateDigital(e.target.files?.[0] ?? null)}
+            />
+            {form.digitalAssetPath && (
+              <span className="meta">Asset: {form.digitalAssetPath}</span>
+            )}
+          </label>
+        )}
         <button className="btn btn-primary" type="submit">
           Create
         </button>
@@ -395,6 +466,7 @@ export function StaffProducts() {
               <th>Price (pesewas)</th>
               <th>Stock</th>
               <th>Image</th>
+              <th>Digital file</th>
               <th>Featured</th>
               <th>Status</th>
             </tr>
@@ -454,6 +526,26 @@ export function StaffProducts() {
                     }}
                   />
                   {uploadingId === p.id && <div className="meta">Uploading…</div>}
+                </td>
+                <td>
+                  {(p.fulfillment === "digital" || p.fulfillment === "both") ? (
+                    <>
+                      <input
+                        type="file"
+                        disabled={uploadingDigitalId === p.id}
+                        onChange={(e) => {
+                          void onProductDigital(p, e.target.files?.[0] ?? null);
+                          e.target.value = "";
+                        }}
+                      />
+                      {p.digitalAssetPath && (
+                        <div className="meta">{p.digitalAssetPath}</div>
+                      )}
+                      {uploadingDigitalId === p.id && <div className="meta">Uploading…</div>}
+                    </>
+                  ) : (
+                    <span className="meta">—</span>
+                  )}
                 </td>
                 <td>
                   <button

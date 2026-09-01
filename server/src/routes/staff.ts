@@ -9,6 +9,7 @@ import { db } from "../db/index.js";
 import {
   categories,
   orderItems,
+  paymentRecords,
   orders,
   products,
   repairOrders,
@@ -22,6 +23,7 @@ import { slugify } from "../lib/utils.js";
 const router = Router();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = path.resolve(__dirname, "../../storage/uploads");
+const downloadsDir = path.resolve(__dirname, "../../storage/downloads");
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -32,6 +34,17 @@ const upload = multer({
     },
   }),
   limits: { fileSize: 10 * 1024 * 1024 },
+});
+
+const digitalUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, downloadsDir),
+    filename: (_req, file, cb) => {
+      const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+      cb(null, `${Date.now()}-${safe}`);
+    },
+  }),
+  limits: { fileSize: 200 * 1024 * 1024 },
 });
 
 router.use(requireRoles("admin", "manager"));
@@ -47,6 +60,18 @@ router.post("/uploads", upload.single("file"), (req, res) => {
     originalName: req.file.originalname,
     size: req.file.size,
     mimeType: req.file.mimetype,
+  });
+});
+
+router.post("/uploads/digital", digitalUpload.single("file"), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "file required" });
+  }
+  res.status(201).json({
+    path: req.file.filename,
+    filename: req.file.filename,
+    originalName: req.file.originalname,
+    size: req.file.size,
   });
 });
 
@@ -138,10 +163,49 @@ router.get("/dashboard", async (_req, res) => {
 
 router.get("/orders", async (_req, res) => {
   const rows = await db.query.orders.findMany({
-    with: { items: true },
+    with: { items: true, payments: { with: { recordedBy: true } } },
     orderBy: [desc(orders.createdAt)],
   });
   res.json({ orders: rows });
+});
+
+router.post("/orders/:id/payments", async (req: AuthedRequest, res) => {
+  const schema = z.object({
+    method: z.enum(["cash", "momo", "bank", "other"]),
+    amountPesewas: z.number().int().positive(),
+    reference: z.string().max(160).optional(),
+    notes: z.string().max(500).optional(),
+    receivedAt: z.string().datetime().optional(),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid payment record" });
+
+  const order = await db.query.orders.findFirst({
+    where: eq(orders.id, req.params.id),
+    with: { payments: true },
+  });
+  if (!order) return res.status(404).json({ error: "Order not found" });
+  if (order.status === "cancelled") return res.status(409).json({ error: "Cancelled orders cannot receive payments" });
+
+  const received = order.payments.reduce((total, payment) => total + payment.amountPesewas, 0);
+  const remaining = order.totalPesewas - received;
+  if (parsed.data.amountPesewas > remaining) {
+    return res.status(400).json({ error: `Payment exceeds outstanding balance of ${remaining} pesewas` });
+  }
+
+  const [payment] = await db.insert(paymentRecords).values({
+    orderId: order.id,
+    method: parsed.data.method,
+    amountPesewas: parsed.data.amountPesewas,
+    reference: parsed.data.reference?.trim() || null,
+    notes: parsed.data.notes?.trim() || null,
+    receivedAt: parsed.data.receivedAt ? new Date(parsed.data.receivedAt) : new Date(),
+    recordedByUserId: req.user!.id,
+  }).returning();
+
+  const paidTotal = received + payment.amountPesewas;
+  const updated = paidTotal === order.totalPesewas ? await markOrderPaid(order.id) : order;
+  res.status(201).json({ payment, paidTotalPesewas: paidTotal, order: updated });
 });
 
 router.patch("/orders/:id", async (req, res) => {

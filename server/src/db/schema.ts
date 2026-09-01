@@ -158,6 +158,22 @@ export const orderItems = pgTable("order_items", {
   digitalAssetPath: text("digital_asset_path"),
 });
 
+// An append-only ledger for payments confirmed at the counter or from an
+// external transfer. Gateway payments remain verified through their provider.
+export const paymentRecords = pgTable("payment_records", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  orderId: uuid("order_id")
+    .notNull()
+    .references(() => orders.id, { onDelete: "cascade" }),
+  method: text("method").notNull(),
+  amountPesewas: integer("amount_pesewas").notNull(),
+  reference: text("reference"),
+  notes: text("notes"),
+  receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
+  recordedByUserId: uuid("recorded_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const downloadTokens = pgTable("download_tokens", {
   id: uuid("id").defaultRandom().primaryKey(),
   orderItemId: uuid("order_item_id")
@@ -243,6 +259,12 @@ export const cartItemsRelations = relations(cartItems, ({ one }) => ({
 export const ordersRelations = relations(orders, ({ one, many }) => ({
   user: one(users, { fields: [orders.userId], references: [users.id] }),
   items: many(orderItems),
+  payments: many(paymentRecords),
+}));
+
+export const paymentRecordsRelations = relations(paymentRecords, ({ one }) => ({
+  order: one(orders, { fields: [paymentRecords.orderId], references: [orders.id] }),
+  recordedBy: one(users, { fields: [paymentRecords.recordedByUserId], references: [users.id] }),
 }));
 
 export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
