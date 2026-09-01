@@ -95,13 +95,10 @@ export function ShopPage() {
   return (
     <div className="page container">
       <div className="page-header">
-        <p className="eyebrow page-eyebrow">
-          <span className="pulse-dot" />
-          Ghana Creator Catalog
-        </p>
-        <h1>Shop the tools that elevate your craft.</h1>
+        <p className="eyebrow page-eyebrow">Shop</p>
+        <h1>All products.</h1>
         <p className="lede">
-          Cinematic LUTs, studio audio packs, camera accessories, and production hardware priced transparently in Ghana cedis (GH₵).
+          Digital downloads and physical gear, priced in Ghana cedis.
         </p>
       </div>
 

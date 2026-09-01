@@ -19,15 +19,15 @@ export function ProductCard({ product, onQuickView, onOpenCart }: ProductCardPro
     product.fulfillment === "digital"
       ? "badge-digital"
       : product.fulfillment === "physical"
-      ? "badge-physical"
-      : "badge-both";
+        ? "badge-physical"
+        : "badge-both";
 
   const fulfillmentLabel =
     product.fulfillment === "digital"
-      ? "⚡ Digital Download"
+      ? "Digital"
       : product.fulfillment === "physical"
-      ? "📦 Physical Gear"
-      : "🎁 Creator Bundle";
+        ? "Physical"
+        : "Bundle";
 
   async function handleQuickAdd(e: React.MouseEvent) {
     e.preventDefault();
@@ -39,22 +39,12 @@ export function ProductCard({ product, onQuickView, onOpenCart }: ProductCardPro
         body: JSON.stringify({ productId: product.id, quantity: 1 }),
       });
       await refreshCart();
-      toast(`Added 1 × ${product.name} to bag`);
-      if (onOpenCart) {
-        onOpenCart();
-      }
+      toast(`Added ${product.name} to bag`);
+      onOpenCart?.();
     } catch {
-      toast("Could not add to bag. Please try again.");
+      toast("Could not add to bag");
     } finally {
       setAdding(false);
-    }
-  }
-
-  function handleQuickViewClick(e: React.MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (onQuickView) {
-      onQuickView(product);
     }
   }
 
@@ -64,79 +54,42 @@ export function ProductCard({ product, onQuickView, onOpenCart }: ProductCardPro
         <div className="product-badge-overlay">
           <span className={`badge ${fulfillmentClass}`}>{fulfillmentLabel}</span>
         </div>
-
-        {/* Quick Action Floating Buttons */}
+        <img
+          src={product.images?.[0] || "/images/product-placeholder.svg"}
+          alt={product.name}
+        />
         <div className="product-quick-actions">
           {onQuickView && (
             <button
               className="product-quick-btn"
-              onClick={handleQuickViewClick}
-              title="Quick preview"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onQuickView(product);
+              }}
               aria-label={`Quick view ${product.name}`}
             >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                <circle cx="12" cy="12" r="3"></circle>
-              </svg>
+              View
             </button>
           )}
-
           <button
             className="product-quick-btn"
-            onClick={handleQuickAdd}
+            type="button"
             disabled={adding}
-            title="Quick add to bag"
+            onClick={handleQuickAdd}
             aria-label={`Add ${product.name} to bag`}
           >
-            {adding ? (
-              <span style={{ fontSize: "0.75rem" }}>…</span>
-            ) : (
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-            )}
+            {adding ? "…" : "Add"}
           </button>
         </div>
-
-        <img
-          src={product.images?.[0] || "/images/product-placeholder.svg"}
-          alt={product.name}
-          loading="lazy"
-        />
       </div>
-
       <div className="body">
-        <div className="product-card-meta">
-          <span>{product.category?.name || "Creator Asset"}</span>
-        </div>
-
         <h3>{product.name}</h3>
         {product.description && <p className="desc">{product.description}</p>}
-
         <div className="product-card-footer">
           <div className="product-price">{formatGhs(product.pricePesewas)}</div>
-          <span className="product-cta-badge">
-            Explore <span>→</span>
-          </span>
+          <span className="product-cta-badge">Learn more</span>
         </div>
       </div>
     </Link>

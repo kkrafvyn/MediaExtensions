@@ -25,10 +25,10 @@ export function Footer() {
         method: "POST",
         body: JSON.stringify({ email: newsletterEmail.trim() }),
       });
-      toast("Subscribed for creator drops & discounts!");
+      toast("You're on the list.");
       setNewsletterEmail("");
     } catch {
-      toast("Could not subscribe right now. Please try again.");
+      toast("Could not subscribe. Try again later.");
     } finally {
       setSubscribing(false);
     }
@@ -38,108 +38,71 @@ export function Footer() {
     <footer className="footer">
       <div className="container footer-grid">
         <div className="footer-brand">
-          <Link to="/" className="brand-link" style={{ color: "#ffffff" }}>
-            <span style={{ color: "#ffffff", fontWeight: 800 }}>Media Extensions</span>
+          <Link to="/" className="brand-link">
+            Media Extensions
           </Link>
-          <p>
-            The creator workspace for Ghana — digital color grades, audio tools, camera gear, and certified GSM device repairs.
-          </p>
-
-          <form onSubmit={onSubscribe} style={{ marginTop: "1.5rem", maxWidth: "22rem" }}>
-            <label style={{ fontSize: "0.8rem", color: "rgba(255, 255, 255, 0.7)", marginBottom: "0.4rem" }}>
-              Get creator assets & gear updates:
+          <p>Digital tools, camera gear, and GSM repairs for creators in Ghana.</p>
+          {(meta?.storePhone || meta?.storeEmail) && (
+            <p className="meta" style={{ marginTop: "0.75rem" }}>
+              {meta.storePhone && <span>{meta.storePhone}</span>}
+              {meta.storePhone && meta.storeEmail && " · "}
+              {meta.storeEmail && <span>{meta.storeEmail}</span>}
+            </p>
+          )}
+          <form onSubmit={onSubscribe} style={{ marginTop: "1.25rem", maxWidth: "20rem" }}>
+            <label className="meta" style={{ marginBottom: "0.35rem" }}>
+              Updates
             </label>
             <div style={{ display: "flex", gap: "0.5rem" }}>
               <input
                 type="email"
-                placeholder="Enter your email"
+                placeholder="Email"
                 value={newsletterEmail}
                 onChange={(e) => setNewsletterEmail(e.target.value)}
                 required
-                style={{
-                  background: "rgba(255, 255, 255, 0.08)",
-                  borderColor: "rgba(255, 255, 255, 0.15)",
-                  color: "#ffffff",
-                  padding: "0.65rem 0.95rem",
-                  fontSize: "0.85rem",
-                  borderRadius: "var(--radius-full)",
-                }}
               />
-              <button
-                type="submit"
-                className="btn btn-primary btn-sm"
-                style={{ padding: "0.65rem 1.2rem", borderRadius: "var(--radius-full)" }}
-                disabled={subscribing}
-              >
+              <button className="btn btn-primary btn-sm" type="submit" disabled={subscribing}>
                 {subscribing ? "…" : "Join"}
               </button>
             </div>
           </form>
-
-          {(meta?.storePhone || meta?.storeEmail || meta?.storeWhatsApp) && (
-            <div style={{ marginTop: "1.5rem", display: "flex", flexDirection: "column", gap: "0.4rem", fontSize: "0.85rem" }}>
-              {meta.storePhone && (
-                <div style={{ display: "flex", gap: "0.5rem", color: "rgba(255,255,255,0.8)" }}>
-                  <span>📞</span> <span>{meta.storePhone}</span>
-                </div>
-              )}
-              {meta.storeWhatsApp && (
-                <div style={{ display: "flex", gap: "0.5rem", color: "rgba(255,255,255,0.8)" }}>
-                  <span>💬</span> <span>WhatsApp: {meta.storeWhatsApp}</span>
-                </div>
-              )}
-              {meta.storeEmail && (
-                <div style={{ display: "flex", gap: "0.5rem", color: "rgba(255,255,255,0.8)" }}>
-                  <span>✉️</span> <span>{meta.storeEmail}</span>
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         <div>
-          <h3>Store & Gear</h3>
-          <Link to="/shop">All Products</Link>
-          <Link to="/shop?fulfillment=digital">Digital Downloads</Link>
-          <Link to="/shop?fulfillment=physical">Camera & Rig Gear</Link>
-          <Link to="/shop?fulfillment=both">Creator Bundles</Link>
-          <Link to="/cart">My Shopping Bag</Link>
+          <h3>Store</h3>
+          <Link to="/shop">All products</Link>
+          <Link to="/shop?fulfillment=digital">Digital</Link>
+          <Link to="/shop?fulfillment=physical">Physical</Link>
+          <Link to="/cart">Bag</Link>
         </div>
 
         <div>
-          <h3>GSM Repairs</h3>
-          <Link to="/repairs">Repair Studio Overview</Link>
-          <Link to="/imei-check">IMEI Device Checker</Link>
-          <Link to="/repairs/book">Book a Repair</Link>
-          <Link to="/track">Track Repair / Order</Link>
-          <Link to="/pickup">Accra Pickup Station</Link>
-          <Link to="/shipping">Delivery Across Ghana</Link>
+          <h3>Repairs</h3>
+          <Link to="/repairs">Overview</Link>
+          <Link to="/repairs/book">Book</Link>
+          <Link to="/imei-check">IMEI check</Link>
+          <Link to="/track">Track</Link>
         </div>
 
         <div>
-          <h3>Support & Info</h3>
-          <Link to="/track">Track Order Status</Link>
-          <Link to="/faq">Frequently Asked Questions</Link>
-          <Link to="/about">About Media Extensions</Link>
-          <Link to="/contact">Contact Support</Link>
-          <Link to="/returns">Returns & Warranty</Link>
+          <h3>Help</h3>
+          <Link to="/shipping">Shipping</Link>
+          <Link to="/returns">Returns</Link>
+          <Link to="/faq">FAQ</Link>
+          <Link to="/contact">Contact</Link>
         </div>
 
         <div>
-          <h3>Account & Legal</h3>
-          <Link to="/account">Customer Account</Link>
-          <Link to="/login">Sign In</Link>
-          <Link to="/register">Create Account</Link>
-          <Link to="/privacy">Privacy Policy</Link>
-          <Link to="/terms">Terms of Service</Link>
+          <h3>Legal</h3>
+          <Link to="/privacy">Privacy</Link>
+          <Link to="/terms">Terms</Link>
+          <Link to="/pickup">Pickup</Link>
         </div>
       </div>
 
       <div className="container footer-bottom">
-        <span>© {year} Media Extensions Ltd. · Accra, Ghana</span>
-        <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.8rem" }}>
-          MTN MoMo · Telecel Cash · AT Money · Paystack · Visa/MC
-        </span>
+        <span>© {year} Media Extensions · Accra, Ghana</span>
+        <span className="meta">MoMo · Bank transfer · Paystack</span>
       </div>
     </footer>
   );
