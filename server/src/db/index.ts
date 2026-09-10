@@ -1,7 +1,7 @@
-import { neon } from "@neondatabase/serverless";
+import { neonConfig, Pool, neon } from "@neondatabase/serverless";
+import { drizzle as drizzleWs } from "drizzle-orm/neon-serverless";
 import { drizzle as drizzleHttp } from "drizzle-orm/neon-http";
-import type { NeonHttpDatabase } from "drizzle-orm/neon-http";
-import type { NeonDatabase } from "drizzle-orm/neon-serverless";
+import ws from "ws";
 import * as schema from "./schema.js";
 
 if (!process.env.DATABASE_URL) {
@@ -11,37 +11,36 @@ if (!process.env.DATABASE_URL) {
 const connectionString = process.env.DATABASE_URL;
 const onVercel = process.env.VERCEL === "1";
 
-type AppDb = NeonHttpDatabase<typeof schema> | NeonDatabase<typeof schema>;
+neonConfig.webSocketConstructor = ws;
 
-async function createWsBundle() {
-  const { neonConfig, Pool } = await import("@neondatabase/serverless");
-  const { drizzle } = await import("drizzle-orm/neon-serverless");
-  const ws = (await import("ws")).default;
-  neonConfig.webSocketConstructor = ws;
-  const pool = new Pool({ connectionString });
-  pool.on("error", (err: Error) => {
+type AppDb = ReturnType<typeof drizzleWs<typeof schema>> | ReturnType<typeof drizzleHttp<typeof schema>>;
+
+let poolRef: Pool | null = null;
+let dbRef: AppDb;
+
+if (onVercel) {
+  // HTTP driver — no long-lived sockets. Avoid relational `db.query` + `with` on this path.
+  dbRef = drizzleHttp(neon(connectionString), { schema });
+} else {
+  poolRef = new Pool({ connectionString });
+  poolRef.on("error", (err: Error) => {
     console.warn("[database pool]", err?.message || err);
   });
-  return { db: drizzle(pool, { schema }), pool };
+  dbRef = drizzleWs(poolRef, { schema });
 }
 
-const localBundle = onVercel ? null : await createWsBundle();
+export const db = dbRef;
 
-export const db: AppDb = onVercel
-  ? drizzleHttp(neon(connectionString), { schema })
-  : localBundle!.db;
-
-export const pool = new Proxy({} as NonNullable<typeof localBundle>["pool"], {
+export const pool = new Proxy({} as Pool, {
   get(_t, prop, receiver) {
-    if (!localBundle?.pool) {
+    if (!poolRef) {
       throw new Error("Postgres pool is unavailable on Vercel");
     }
-    const value = Reflect.get(localBundle.pool, prop, receiver);
-    return typeof value === "function" ? value.bind(localBundle.pool) : value;
+    const value = Reflect.get(poolRef, prop, receiver);
+    return typeof value === "function" ? value.bind(poolRef) : value;
   },
 });
 
-/** Kept for the serverless entry; HTTP client needs no warm-up. */
 export async function warmDb() {
   return db;
 }

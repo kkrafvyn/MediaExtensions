@@ -2,9 +2,15 @@ import serverless from "serverless-http";
 import app from "./app.js";
 import { warmDb } from "./db/index.js";
 
-await warmDb();
+let run: ReturnType<typeof serverless> | null = null;
 
-const run = serverless(app);
+async function getRun() {
+  if (!run) {
+    await warmDb();
+    run = serverless(app);
+  }
+  return run;
+}
 
 export default async function handler(req: any, res: any) {
   const url = String(req.url ?? "");
@@ -14,5 +20,6 @@ export default async function handler(req: any, res: any) {
     res.end(JSON.stringify({ ok: true, brand: "Media Extensions" }));
     return;
   }
-  return run(req, res);
+  const handle = await getRun();
+  return handle(req, res);
 }

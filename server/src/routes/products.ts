@@ -7,10 +7,11 @@ import { toPublicProduct } from "../lib/inventory.js";
 const router = Router();
 
 router.get("/categories", async (_req, res) => {
-  const rows = await db.query.categories.findMany({
-    where: eq(categories.active, true),
-    orderBy: [asc(categories.sortOrder), asc(categories.name)],
-  });
+  const rows = await db
+    .select()
+    .from(categories)
+    .where(eq(categories.active, true))
+    .orderBy(asc(categories.sortOrder), asc(categories.name));
   res.json({ categories: rows });
 });
 
@@ -19,9 +20,11 @@ router.get("/", async (req, res) => {
   const conditions = [eq(products.active, true)];
 
   if (typeof category === "string" && category) {
-    const cat = await db.query.categories.findFirst({
-      where: eq(categories.slug, category),
-    });
+    const [cat] = await db
+      .select()
+      .from(categories)
+      .where(eq(categories.slug, category))
+      .limit(1);
     if (cat) conditions.push(eq(products.categoryId, cat.id));
   }
   if (typeof fulfillment === "string" && ["digital", "physical", "both"].includes(fulfillment)) {
@@ -44,18 +47,22 @@ router.get("/", async (req, res) => {
   const [totalRow] = await db.select({ total: count() }).from(products).where(where);
   const total = totalRow?.total ?? 0;
 
-  const rows = await db.query.products.findMany({
-    where,
-    with: { category: true },
-    orderBy: [asc(products.name)],
-    limit,
-    offset,
-  });
+  const rows = await db
+    .select({
+      product: products,
+      category: categories,
+    })
+    .from(products)
+    .leftJoin(categories, eq(products.categoryId, categories.id))
+    .where(where)
+    .orderBy(asc(products.name))
+    .limit(limit)
+    .offset(offset);
 
   res.json({
-    products: rows.map((row) => ({
-      ...toPublicProduct(row),
-      category: row.category,
+    products: rows.map(({ product, category: cat }) => ({
+      ...toPublicProduct(product),
+      category: cat,
     })),
     pagination: {
       page,
@@ -67,17 +74,22 @@ router.get("/", async (req, res) => {
 });
 
 router.get("/:slug", async (req, res) => {
-  const product = await db.query.products.findFirst({
-    where: and(eq(products.slug, req.params.slug), eq(products.active, true)),
-    with: { category: true },
-  });
-  if (!product) {
+  const [row] = await db
+    .select({
+      product: products,
+      category: categories,
+    })
+    .from(products)
+    .leftJoin(categories, eq(products.categoryId, categories.id))
+    .where(and(eq(products.slug, req.params.slug), eq(products.active, true)))
+    .limit(1);
+  if (!row) {
     return res.status(404).json({ error: "Product not found" });
   }
   res.json({
     product: {
-      ...toPublicProduct(product),
-      category: product.category,
+      ...toPublicProduct(row.product),
+      category: row.category,
     },
   });
 });
