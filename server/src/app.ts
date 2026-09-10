@@ -135,18 +135,20 @@ if (process.env.VERCEL === "1") {
   );
 }
 
-if (isLocalStorage()) {
+if (isLocalStorage() && process.env.VERCEL !== "1") {
   app.use("/uploads", express.static(getLocalUploadsDir()));
 }
 
 app.use(async (req: AuthedRequest, _res, next) => {
   req.user = null;
-  if (req.session.userId) {
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, req.session.userId),
-    });
-    req.user = user ?? null;
-    if (!user) delete req.session.userId;
+  try {
+    if (req.session?.userId) {
+      const [user] = await db.select().from(users).where(eq(users.id, req.session.userId)).limit(1);
+      req.user = user ?? null;
+      if (!user) delete req.session.userId;
+    }
+  } catch (err) {
+    console.warn("[auth middleware]", err);
   }
   next();
 });
