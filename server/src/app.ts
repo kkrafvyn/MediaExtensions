@@ -52,7 +52,9 @@ const allowedOrigins = new Set(
 );
 
 ensureLocalStorageDirs();
-void loadStoreConfig();
+if (process.env.VERCEL !== "1") {
+  void loadStoreConfig();
+}
 
 export const app = express();
 const PgSession = connectPgSimple(session);
@@ -83,16 +85,26 @@ app.post(
 
 app.use(express.json());
 app.use(cookieParser());
+
+// Liveness before session/DB — used to diagnose cold-start hangs on Vercel
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true, brand: "Media Extensions" });
+});
+
+const sessionStore =
+  process.env.VERCEL === "1"
+    ? new session.MemoryStore()
+    : new PgSession({
+        pool: pool as never,
+        createTableIfMissing: true,
+      });
+
 app.use(
   session({
-    store: new PgSession({
-      // Neon serverless Pool (WebSocket) — node `pg` TCP hangs on Vercel
-      pool: pool as never,
-      createTableIfMissing: true,
-    }),
+    store: sessionStore,
     secret: process.env.SESSION_SECRET ?? "dev-secret",
     resave: false,
-    saveUninitialized: true,
+    saveUninitialized: false,
     cookie: {
       httpOnly: true,
       sameSite: "lax",
@@ -140,10 +152,6 @@ const checkoutLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many checkout attempts, try again later" },
-});
-
-app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, brand: "Media Extensions" });
 });
 
 app.get("/api/meta", async (_req, res) => {
