@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { ProductCard } from "../components/ProductCard";
 import { QuickViewModal } from "../components/QuickViewModal";
+import { BackgroundCarousel, SHOP_CAROUSEL } from "../components/BackgroundCarousel";
 import { IconClose, IconPackage } from "../components/Icons";
 import type { Category, Product } from "../types";
 
@@ -106,9 +107,10 @@ export function ShopPage() {
 
   return (
     <div className="shop-page">
-      <header className="shop-hero">
+      <header className="shop-hero shop-hero-with-carousel">
+        <BackgroundCarousel slides={SHOP_CAROUSEL} intervalMs={6000} />
         <div className="container shop-hero-inner">
-          <p className="eyebrow">Store</p>
+          <p className="eyebrow eyebrow-on-media">Media Extensions · Store</p>
           <h1>Shop.</h1>
           <p className="lede">
             Digital downloads and physical gear for creators — priced in Ghana cedis.

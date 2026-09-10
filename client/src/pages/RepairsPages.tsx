@@ -12,6 +12,7 @@ import {
   IconCamera,
   IconWrench,
 } from "../components/Icons";
+import { BackgroundCarousel, REPAIR_CAROUSEL } from "../components/BackgroundCarousel";
 
 export function RepairsPage() {
   const [services, setServices] = useState<RepairService[]>([]);
@@ -25,17 +26,21 @@ export function RepairsPage() {
   }, []);
 
   return (
-    <div className="page container">
-      <div className="page-header" style={{ maxWidth: "720px" }}>
-        <p className="eyebrow page-eyebrow">
-          <span className="pulse-dot" />
-          Certified GSM Hardware Studio · Accra
-        </p>
-        <h1>Precision device repair & diagnostics.</h1>
-        <p className="lede">
-          From screen replacements and battery upgrades to water damage treatment, micro-soldering, and camera repairs. Book ahead online or drop into our Accra studio.
-        </p>
-      </div>
+    <div className="page repairs-page">
+      <header className="repairs-hero repairs-hero-with-carousel">
+        <BackgroundCarousel slides={REPAIR_CAROUSEL} intervalMs={6500} />
+        <div className="container repairs-hero-inner">
+          <p className="eyebrow eyebrow-on-media page-eyebrow">
+            Certified GSM Hardware Studio · Accra
+          </p>
+          <h1>Precision device repair & diagnostics.</h1>
+          <p className="lede">
+            From screen replacements and battery upgrades to water damage treatment, micro-soldering, and camera repairs. Book ahead online or drop into our Accra studio.
+          </p>
+        </div>
+      </header>
+
+      <div className="container">
 
       {/* 4 Process Cards */}
       <div className="repair-steps-grid" style={{ margin: "2rem 0 3.5rem" }}>
@@ -138,6 +143,7 @@ export function RepairsPage() {
         <Link to="/repairs/book" className="btn btn-dark">
           Book Custom Diagnostic
         </Link>
+      </div>
       </div>
     </div>
   );

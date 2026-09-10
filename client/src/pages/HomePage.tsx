@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatGhs } from "../lib/api";
 import { ProductCard } from "../components/ProductCard";
+import { BackgroundCarousel, HOME_CAROUSEL } from "../components/BackgroundCarousel";
 import type { Product, RepairService } from "../types";
 
 export function HomePage() {
@@ -23,9 +24,10 @@ export function HomePage() {
 
   return (
     <>
-      <section className="hero">
+      <section className="hero hero-with-carousel">
+        <BackgroundCarousel slides={HOME_CAROUSEL} />
         <div className="container hero-copy">
-          <p className="eyebrow">Media Extensions · Ghana</p>
+          <p className="eyebrow eyebrow-on-media">Media Extensions · Ghana</p>
           <h1>
             Creator tools.
             <br />
@@ -40,7 +42,7 @@ export function HomePage() {
             <Link to="/shop" className="btn btn-primary">
               Shop the store
             </Link>
-            <Link to="/repairs" className="btn btn-light">
+            <Link to="/repairs" className="btn btn-on-media">
               Book a repair
             </Link>
           </div>
