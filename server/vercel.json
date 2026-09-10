@@ -1,12 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "installCommand": "npm install",
+  "installCommand": "cd .. && npm install --include=dev && npm install @neondatabase/serverless@0.10.4 --workspace=server --install-strategy=nested --include=dev",
   "buildCommand": "npm run vercel-build",
   "outputDirectory": "www",
   "functions": {
     "api/index.mjs": {
-      "includeFiles": "{dist/**,node_modules/@neondatabase/**,../node_modules/@neondatabase/**,../node_modules/drizzle-orm/**,node_modules/drizzle-orm/**}"
+      "includeFiles": "node_modules/@neondatabase/serverless/**"
     }
   },
   "rewrites": [
