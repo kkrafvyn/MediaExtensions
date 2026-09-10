@@ -91,31 +91,31 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true, brand: "Media Extensions" });
 });
 
-// On Vercel, skip persistent session store — MemoryStore + serverless still
-// deadlocks under concurrent session touch with some express-session versions.
-// Cookie-only session keeps auth working within a single isolate.
-const sessionStore =
-  process.env.VERCEL === "1"
-    ? undefined
-    : new PgSession({
+if (process.env.VERCEL === "1") {
+  // Cookie jar only — no server session store on serverless (store.get can stall the isolate).
+  app.use((req, _res, next) => {
+    (req as express.Request & { session: Record<string, unknown> }).session = {};
+    next();
+  });
+} else {
+  app.use(
+    session({
+      store: new PgSession({
         pool: pool as never,
         createTableIfMissing: true,
-      });
-
-app.use(
-  session({
-    ...(sessionStore ? { store: sessionStore } : {}),
-    secret: process.env.SESSION_SECRET ?? "dev-secret",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: isProd,
-      maxAge: 1000 * 60 * 60 * 24 * 14,
-    },
-  }),
-);
+      }),
+      secret: process.env.SESSION_SECRET ?? "dev-secret",
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: isProd,
+        maxAge: 1000 * 60 * 60 * 24 * 14,
+      },
+    }),
+  );
+}
 
 if (isLocalStorage()) {
   app.use("/uploads", express.static(getLocalUploadsDir()));
