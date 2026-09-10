@@ -1,14 +1,11 @@
 import { Router } from "express";
 import path from "path";
-import fs from "fs";
-import { fileURLToPath } from "url";
 import { eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { downloadTokens } from "../db/schema.js";
+import { getObject } from "../lib/storage.js";
 
 const router = Router();
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const downloadsRoot = path.resolve(__dirname, "../../storage/downloads");
 
 router.get("/:token", async (req, res) => {
   const tokenRow = await db.query.downloadTokens.findFirst({
@@ -42,8 +39,8 @@ router.get("/:token", async (req, res) => {
     return res.status(404).json({ error: "File missing" });
   }
 
-  const filePath = path.join(downloadsRoot, path.basename(asset));
-  if (!fs.existsSync(filePath)) {
+  const stored = await getObject("downloads", path.basename(asset));
+  if (!stored) {
     return res.status(404).json({ error: "File missing on server" });
   }
 
@@ -52,7 +49,10 @@ router.get("/:token", async (req, res) => {
     .set({ downloadCount: tokenRow.downloadCount + 1 })
     .where(eq(downloadTokens.id, tokenRow.id));
 
-  res.download(filePath, path.basename(filePath));
+  res.setHeader("Content-Disposition", `attachment; filename="${stored.filename}"`);
+  if (stored.contentType) res.setHeader("Content-Type", stored.contentType);
+  if (stored.contentLength != null) res.setHeader("Content-Length", String(stored.contentLength));
+  stored.stream.pipe(res);
 });
 
 export default router;

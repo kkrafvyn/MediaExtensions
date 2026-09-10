@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api, formatGhs } from "../lib/api";
 import type { OrderSummary } from "../types";
 
@@ -15,15 +15,18 @@ type ReceiptResponse = {
 
 export function OrderReceiptPage() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const [data, setData] = useState<ReceiptResponse | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!id) return;
-    api<ReceiptResponse>(`/api/orders/${id}/receipt`)
+    const email = searchParams.get("email");
+    const qs = email ? `?email=${encodeURIComponent(email)}` : "";
+    api<ReceiptResponse>(`/api/orders/${id}/receipt${qs}`)
       .then(setData)
       .catch((e) => setError(e.message));
-  }, [id]);
+  }, [id, searchParams]);
 
   if (error) {
     return (

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api, formatGhs } from "../lib/api";
 import { FulfillmentBadge } from "../components/Icons";
 import type { PaymentInfo } from "../types";
@@ -19,17 +19,20 @@ type OrderResponse = {
 
 export function OrderPage() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const [data, setData] = useState<OrderResponse | null>(null);
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!id) return;
-    api<OrderResponse>(`/api/orders/${id}`)
+    const email = searchParams.get("email");
+    const qs = email ? `?email=${encodeURIComponent(email)}` : "";
+    api<OrderResponse>(`/api/orders/${id}${qs}`)
       .then(setData)
       .catch((e) => setError(e.message));
     api<PaymentInfo>("/api/checkout/payment-info").then(setPaymentInfo).catch(() => undefined);
-  }, [id]);
+  }, [id, searchParams]);
 
   if (error) {
     return (
@@ -61,8 +64,16 @@ export function OrderPage() {
       </p>
       <h1>Order Confirmed</h1>
       <p className="lede">
-        Thank you, {order.name}! We have sent your order details and invoice to{" "}
-        <strong>{order.email}</strong>.
+        Thank you, {order.name}!{" "}
+        {isPaid ? (
+          <>
+            Confirmation and any download links were sent to <strong>{order.email}</strong>.
+          </>
+        ) : (
+          <>
+            We will email confirmation to <strong>{order.email}</strong> after payment is confirmed.
+          </>
+        )}
       </p>
 
       {/* Downloads Section (If digital tools exist) */}

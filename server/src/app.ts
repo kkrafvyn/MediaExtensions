@@ -14,6 +14,7 @@ import { db } from "./db/index.js";
 import { users } from "./db/schema.js";
 import type { AuthedRequest } from "./middleware/auth.js";
 import { GH_REGIONS, paymentInstructions } from "./lib/utils.js";
+import { ensureStoreConfig, loadStoreConfig } from "./lib/storeConfig.js";
 
 import authRoutes from "./routes/auth.js";
 import productRoutes from "./routes/products.js";
@@ -26,9 +27,13 @@ import staffRoutes from "./routes/staff.js";
 import contactRoutes from "./routes/contact.js";
 import { handlePaystackWebhook } from "./routes/paystackWebhook.js";
 
+import {
+  ensureLocalStorageDirs,
+  getLocalUploadsDir,
+  isLocalStorage,
+} from "./lib/storage.js";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadsDir = path.resolve(__dirname, "../storage/uploads");
-const downloadsDir = path.resolve(__dirname, "../storage/downloads");
 const clientDist = path.resolve(__dirname, "../../client/dist");
 const isProd = process.env.NODE_ENV === "production";
 const CLIENT_URL = process.env.CLIENT_URL ?? "http://localhost:5173";
@@ -47,8 +52,8 @@ const allowedOrigins = new Set(
   ].filter(Boolean) as string[],
 );
 
-fs.mkdirSync(uploadsDir, { recursive: true });
-fs.mkdirSync(downloadsDir, { recursive: true });
+ensureLocalStorageDirs();
+void loadStoreConfig();
 
 export const app = express();
 const PgSession = connectPgSimple(session);
@@ -102,7 +107,9 @@ app.use(
   }),
 );
 
-app.use("/uploads", express.static(uploadsDir));
+if (isLocalStorage()) {
+  app.use("/uploads", express.static(getLocalUploadsDir()));
+}
 
 app.use(async (req: AuthedRequest, _res, next) => {
   req.user = null;
@@ -144,15 +151,16 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true, brand: "Media Extensions" });
 });
 
-app.get("/api/meta", (_req, res) => {
+app.get("/api/meta", async (_req, res) => {
+  const config = await ensureStoreConfig();
   const payments = paymentInstructions();
   res.json({
     brand: "Media Extensions",
     currency: "GHS",
     regions: GH_REGIONS,
     shipping: {
-      accraPesewas: Number(process.env.SHIPPING_ACCRA_PESEWAS ?? 2500),
-      otherPesewas: Number(process.env.SHIPPING_OTHER_PESEWAS ?? 4500),
+      accraPesewas: config.shipping.accraPesewas,
+      otherPesewas: config.shipping.otherPesewas,
     },
     pickup: payments.pickup,
     store: payments.store,
@@ -161,7 +169,7 @@ app.get("/api/meta", (_req, res) => {
     storeEmail: payments.store.email,
     paystackEnabled: payments.paystackEnabled,
     paystackPublicKey: payments.paystackPublicKey,
-    lowStockThreshold: Number(process.env.LOW_STOCK_THRESHOLD ?? 5),
+    lowStockThreshold: config.lowStockThreshold,
   });
 });
 

@@ -40,6 +40,7 @@ import {
   StaffCategories,
   StaffUsers,
   StaffMessages,
+  StaffSettings,
 } from "./pages/StaffPages";
 
 export default function App() {
@@ -83,6 +84,7 @@ export default function App() {
               <Route path="repairs" element={<StaffRepairs />} />
               <Route path="services" element={<StaffRepairServices />} />
               <Route path="messages" element={<StaffMessages />} />
+              <Route path="settings" element={<StaffSettings />} />
               <Route path="categories" element={<StaffCategories />} />
               <Route path="users" element={<StaffUsers />} />
             </Route>

@@ -71,6 +71,8 @@ export const products = pgTable("products", {
   images: jsonb("images").$type<string[]>().notNull().default([]),
   fulfillment: fulfillmentEnum("fulfillment").notNull().default("physical"),
   stock: integer("stock").notNull().default(0),
+  /** Units held for unpaid/pending orders; available = stock - reserved. */
+  reserved: integer("reserved").notNull().default(0),
   digitalAssetPath: text("digital_asset_path"),
   featured: boolean("featured").notNull().default(false),
   active: boolean("active").notNull().default(true),
@@ -302,6 +304,12 @@ export const passwordResetTokensRelations = relations(passwordResetTokens, ({ on
     references: [users.id],
   }),
 }));
+
+export const storeSettings = pgTable("store_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 export type User = typeof users.$inferSelect;
 export type Product = typeof products.$inferSelect;

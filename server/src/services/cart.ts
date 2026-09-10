@@ -3,6 +3,7 @@ import type { Request } from "express";
 import { db } from "../db/index.js";
 import { cartItems, carts, products } from "../db/schema.js";
 import { getCartSessionId } from "../middleware/auth.js";
+import { availableStock } from "../lib/inventory.js";
 
 export async function getOrCreateCart(req: Request) {
   const userId = req.session.userId;
@@ -42,7 +43,9 @@ export async function getCartWithItems(req: Request) {
         pricePesewas: i.product!.pricePesewas,
         images: i.product!.images,
         fulfillment: i.product!.fulfillment,
-        stock: i.product!.stock,
+        stock: availableStock(i.product!) === Number.POSITIVE_INFINITY
+          ? i.product!.stock
+          : availableStock(i.product!),
       },
       lineTotalPesewas: i.quantity * i.product!.pricePesewas,
     }));
@@ -107,7 +110,7 @@ export async function assertProductAvailable(productId: string, quantity: number
     where: and(eq(products.id, productId), eq(products.active, true)),
   });
   if (!product) return null;
-  if (product.fulfillment !== "digital" && product.stock < quantity) {
+  if (product.fulfillment !== "digital" && availableStock(product) < quantity) {
     return null;
   }
   return product;

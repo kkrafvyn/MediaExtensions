@@ -15,6 +15,7 @@
     "vercel-build": "node scripts/vercel-build.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1129.0",
     "@neondatabase/serverless": "^1.0.0",
     "bcryptjs": "^3.0.2",
     "connect-pg-simple": "^10.0.0",

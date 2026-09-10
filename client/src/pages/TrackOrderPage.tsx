@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, formatGhs } from "../lib/api";
 import { IconCheck } from "../components/Icons";
-import type { OrderSummary } from "../types";
+import type { OrderSummary, TrackDownload } from "../types";
 
 type RepairTrack = {
   id: string;
@@ -18,6 +18,7 @@ export function TrackOrderPage() {
   const [email, setEmail] = useState("");
   const [referenceId, setReferenceId] = useState("");
   const [order, setOrder] = useState<OrderSummary | null>(null);
+  const [downloads, setDownloads] = useState<TrackDownload[]>([]);
   const [repair, setRepair] = useState<RepairTrack | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,14 +28,16 @@ export function TrackOrderPage() {
     setLoading(true);
     setError("");
     setOrder(null);
+    setDownloads([]);
     setRepair(null);
     try {
       if (mode === "order") {
-        const res = await api<{ order: OrderSummary }>("/api/orders/track", {
+        const res = await api<{ order: OrderSummary; downloads?: TrackDownload[] }>("/api/orders/track", {
           method: "POST",
           body: JSON.stringify({ email: email.trim(), orderId: referenceId.trim() }),
         });
         setOrder(res.order);
+        setDownloads(res.downloads ?? []);
       } else {
         const res = await api<{ repair: RepairTrack }>("/api/repairs/track", {
           method: "POST",
@@ -82,6 +85,7 @@ export function TrackOrderPage() {
             setMode("order");
             setError("");
             setOrder(null);
+            setDownloads([]);
             setRepair(null);
           }}
         >
@@ -94,6 +98,7 @@ export function TrackOrderPage() {
             setMode("repair");
             setError("");
             setOrder(null);
+            setDownloads([]);
             setRepair(null);
           }}
         >
@@ -183,11 +188,50 @@ export function TrackOrderPage() {
             <span style={{ color: "var(--accent)" }}>{formatGhs(order.totalPesewas)}</span>
           </div>
 
+          {downloads.length > 0 && (
+            <div style={{ borderTop: "1px solid var(--line)", paddingTop: "1rem" }}>
+              <strong style={{ display: "block", marginBottom: "0.75rem" }}>Digital downloads</strong>
+              <div className="stack" style={{ gap: "0.65rem" }}>
+                {downloads.map((d) => (
+                  <div
+                    key={d.token}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "1rem",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{d.productName}</div>
+                      <div className="meta" style={{ fontSize: "0.8rem" }}>
+                        {d.downloadCount}/{d.maxDownloads} used · expires{" "}
+                        {new Date(d.expiresAt).toLocaleString()}
+                      </div>
+                    </div>
+                    <a className="btn btn-primary btn-sm" href={`/api/downloads/${d.token}`} download>
+                      Download
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="cta-row" style={{ marginTop: "1rem" }}>
-            <Link to={`/order/${order.id}`} className="btn btn-primary" style={{ flex: 1 }}>
+            <Link
+              to={`/order/${order.id}?email=${encodeURIComponent(email.trim())}`}
+              className="btn btn-primary"
+              style={{ flex: 1 }}
+            >
               View Full Order & Downloads
             </Link>
-            <Link to={`/order/${order.id}/receipt`} className="btn btn-light" style={{ flex: 1 }}>
+            <Link
+              to={`/order/${order.id}/receipt?email=${encodeURIComponent(email.trim())}`}
+              className="btn btn-light"
+              style={{ flex: 1 }}
+            >
               Print Receipt
             </Link>
           </div>

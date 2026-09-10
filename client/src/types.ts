@@ -91,6 +91,14 @@ export type StaffAnalytics = {
   paidRevenuePesewas?: number;
   orderStatusCounts?: Record<string, number>;
   repairStatusCounts?: Record<string, number>;
+  ordersByStatus?: Record<string, number>;
+  repairsByStatus?: Record<string, number>;
+  topProducts?: Array<{
+    productId?: string | null;
+    name: string;
+    quantitySold: number;
+    revenuePesewas: number;
+  }>;
   lowStock?: Array<{
     id: string;
     name: string;
@@ -109,14 +117,18 @@ export type OrderSummary = {
   status: string;
   paymentMethod: string;
   totalPesewas: number;
-  email: string;
-  name: string;
+  email?: string;
+  name?: string;
   phone?: string | null;
   createdAt?: string;
+  currency?: string;
+  subtotalPesewas?: number;
+  shippingPesewas?: number;
   items: Array<{
     name: string;
     quantity: number;
     unitPricePesewas: number;
+    fulfillment?: string;
   }>;
   shipping?: {
     fullName?: string;
@@ -125,4 +137,12 @@ export type OrderSummary = {
     region?: string;
     phone?: string;
   } | null;
+};
+
+export type TrackDownload = {
+  token: string;
+  productName: string;
+  expiresAt: string;
+  downloadCount: number;
+  maxDownloads: number;
 };

@@ -29,6 +29,20 @@
       "when": 1786291000000,
       "tag": "0003_payment_records",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786292000000,
+      "tag": "0004_stock_reserved",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786293000000,
+      "tag": "0005_store_settings",
+      "breakpoints": true
     }
   ]
 }

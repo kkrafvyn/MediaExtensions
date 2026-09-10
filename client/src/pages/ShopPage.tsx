@@ -1,12 +1,19 @@
 import { useEffect, useState, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { ProductCard } from "../components/ProductCard";
 import { QuickViewModal } from "../components/QuickViewModal";
-import { IconClose } from "../components/Icons";
+import { IconClose, IconPackage } from "../components/Icons";
 import type { Category, Product } from "../types";
 
 type SortOption = "featured" | "price-asc" | "price-desc" | "name-asc";
+
+const FORMAT_OPTIONS = [
+  { value: "", label: "All" },
+  { value: "digital", label: "Digital" },
+  { value: "physical", label: "Physical" },
+  { value: "both", label: "Bundles" },
+] as const;
 
 export function ShopPage() {
   const [params, setParams] = useSearchParams();
@@ -80,10 +87,11 @@ export function ShopPage() {
     setParams(new URLSearchParams());
   }
 
-  // Sorted product list
   const sortedProducts = useMemo(() => {
     const list = [...products];
-    if (sortBy === "price-asc") {
+    if (sortBy === "featured") {
+      list.sort((a, b) => Number(b.featured) - Number(a.featured) || a.name.localeCompare(b.name));
+    } else if (sortBy === "price-asc") {
       list.sort((a, b) => a.pricePesewas - b.pricePesewas);
     } else if (sortBy === "price-desc") {
       list.sort((a, b) => b.pricePesewas - a.pricePesewas);
@@ -93,169 +101,194 @@ export function ShopPage() {
     return list;
   }, [products, sortBy]);
 
-  return (
-    <div className="page container">
-      <div className="page-header">
-        <p className="eyebrow page-eyebrow">Shop</p>
-        <h1>All products.</h1>
-        <p className="lede">
-          Digital downloads and physical gear, priced in Ghana cedis.
-        </p>
-      </div>
+  const activeCategoryName = categories.find((c) => c.slug === category)?.name;
+  const hasFilters = Boolean(category || fulfillment || q);
 
-      {/* Filter & Search Bar */}
-      <div className="shop-filter-bar">
-        <div className="shop-filter-top">
-          <div className="search-input-wrapper">
-            <svg className="search-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+  return (
+    <div className="shop-page">
+      <header className="shop-hero">
+        <div className="container shop-hero-inner">
+          <p className="eyebrow">Store</p>
+          <h1>Shop.</h1>
+          <p className="lede">
+            Digital downloads and physical gear for creators — priced in Ghana cedis.
+          </p>
+        </div>
+      </header>
+
+      <div className="container shop-body">
+        <div className="shop-toolbar">
+          <div className="shop-search">
+            <svg className="shop-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
             <input
               value={qInput}
               onChange={(e) => setQInput(e.target.value)}
-              placeholder="Search LUTs, presets, mics, batteries, rigs..."
+              placeholder="Search the store"
+              aria-label="Search products"
             />
             {qInput && (
               <button
-                className="search-clear-btn"
+                className="shop-search-clear"
                 onClick={() => setQInput("")}
                 aria-label="Clear search"
+                type="button"
               >
-                <IconClose size={16} />
+                <IconClose size={14} />
               </button>
             )}
           </div>
 
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-            <select
-              value={fulfillment}
-              onChange={(e) => updateParam("fulfillment", e.target.value)}
-              style={{
-                borderRadius: "var(--radius-full)",
-                padding: "0.6rem 1.1rem",
-                width: "auto",
-                fontWeight: 600,
-                fontSize: "0.88rem",
-              }}
-            >
-              <option value="">All Formats</option>
-              <option value="digital">Digital Only</option>
-              <option value="physical">Physical Only</option>
-              <option value="both">Bundles</option>
-            </select>
-
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-              style={{
-                borderRadius: "var(--radius-full)",
-                padding: "0.6rem 1.1rem",
-                width: "auto",
-                fontWeight: 600,
-                fontSize: "0.88rem",
-              }}
-            >
-              <option value="featured">Featured Order</option>
-              <option value="price-asc">Price: Low to High</option>
-              <option value="price-desc">Price: High to Low</option>
-              <option value="name-asc">Name: A to Z</option>
-            </select>
+          <div className="shop-toolbar-aside">
+            <label className="shop-sort">
+              <span className="shop-sort-label">Sort</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                aria-label="Sort products"
+              >
+                <option value="featured">Featured</option>
+                <option value="price-asc">Price: Low to High</option>
+                <option value="price-desc">Price: High to Low</option>
+                <option value="name-asc">Name: A to Z</option>
+              </select>
+            </label>
           </div>
         </div>
 
-        {/* Category Pills */}
-        <div className="category-pills-scroll">
-          <button
-            className={`filter-pill ${!category ? "active" : ""}`}
-            onClick={() => updateParam("category", "")}
-          >
-            All Categories
-          </button>
-          {categories.map((c) => (
-            <button
-              key={c.id}
-              className={`filter-pill ${category === c.slug ? "active" : ""}`}
-              onClick={() => updateParam("category", c.slug)}
-            >
-              {c.name}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {error ? (
-        <div className="alert-banner">{error}</div>
-      ) : loading ? (
-        <div className="product-grid">
-          {Array.from({ length: 6 }, (_, i) => (
-            <div className="product-skeleton" key={i} />
-          ))}
-        </div>
-      ) : sortedProducts.length > 0 ? (
-        <div>
-          <div style={{ marginBottom: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center", color: "var(--muted)", fontSize: "0.9rem" }}>
-            <span>
-              Showing <strong>{sortedProducts.length}</strong> of <strong>{pagination.total}</strong> product{pagination.total === 1 ? "" : "s"}
-              {category && ` in ${categories.find((c) => c.slug === category)?.name || category}`}
-            </span>
-            {(category || fulfillment || q) && (
+        <div className="shop-filters">
+          <div className="shop-filter-group" role="group" aria-label="Product format">
+            {FORMAT_OPTIONS.map((opt) => (
               <button
-                onClick={resetFilters}
-                style={{ fontSize: "0.82rem", color: "var(--accent)", fontWeight: 600 }}
+                key={opt.value || "all"}
+                type="button"
+                className={`shop-chip ${fulfillment === opt.value ? "active" : ""}`}
+                onClick={() => updateParam("fulfillment", opt.value)}
               >
-                Clear all filters <IconClose size={12} />
+                {opt.label}
               </button>
-            )}
-          </div>
-
-          <div className="product-grid">
-            {sortedProducts.map((p) => (
-              <ProductCard
-                key={p.id}
-                product={p}
-                onQuickView={(prod) => setQuickViewProduct(prod)}
-              />
             ))}
           </div>
 
-          {pagination.totalPages > 1 && (
-            <div className="pagination-bar">
+          {categories.length > 0 && (
+            <div className="shop-filter-group shop-filter-scroll" role="group" aria-label="Categories">
               <button
-                className="btn btn-light btn-sm"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                type="button"
+                className={`shop-chip ${!category ? "active" : ""}`}
+                onClick={() => updateParam("category", "")}
               >
-                ← Previous
+                All categories
               </button>
-              <span className="meta">
-                Page {pagination.page} of {pagination.totalPages}
-              </span>
-              <button
-                className="btn btn-light btn-sm"
-                disabled={page >= pagination.totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next →
-              </button>
+              {categories.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={`shop-chip ${category === c.slug ? "active" : ""}`}
+                  onClick={() => updateParam("category", c.slug)}
+                >
+                  {c.name}
+                </button>
+              ))}
             </div>
           )}
         </div>
-      ) : (
-        <div className="empty">
-          <p style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem", color: "var(--ink)" }}>
-            No tools matched your filters
-          </p>
-          <p style={{ color: "var(--muted)", marginBottom: "1.5rem" }}>
-            Try adjusting your search query or reset the category filters.
-          </p>
-          <button className="btn btn-dark" onClick={resetFilters}>
-            Reset All Filters
-          </button>
-        </div>
-      )}
 
-      {/* Quick View Modal */}
+        <div className="shop-results-meta">
+          {!loading && !error && (
+            <p>
+              {pagination.total === 0
+                ? "No products"
+                : (
+                  <>
+                    <strong>{sortedProducts.length}</strong>
+                    {pagination.total > sortedProducts.length
+                      ? ` of ${pagination.total}`
+                      : ""}{" "}
+                    product{pagination.total === 1 ? "" : "s"}
+                    {activeCategoryName ? ` in ${activeCategoryName}` : ""}
+                    {q ? ` for “${q}”` : ""}
+                  </>
+                )}
+            </p>
+          )}
+          {hasFilters && (
+            <button type="button" className="shop-clear-link" onClick={resetFilters}>
+              Clear filters <IconClose size={12} />
+            </button>
+          )}
+        </div>
+
+        {error ? (
+          <div className="alert-banner">{error}</div>
+        ) : loading ? (
+          <div className="product-grid shop-grid">
+            {Array.from({ length: 8 }, (_, i) => (
+              <div className="product-skeleton" key={i} />
+            ))}
+          </div>
+        ) : sortedProducts.length > 0 ? (
+          <>
+            <div className="product-grid shop-grid">
+              {sortedProducts.map((p, index) => (
+                <ProductCard
+                  key={p.id}
+                  product={p}
+                  onQuickView={(prod) => setQuickViewProduct(prod)}
+                  style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
+                />
+              ))}
+            </div>
+
+            {pagination.totalPages > 1 && (
+              <div className="shop-pagination">
+                <button
+                  className="btn btn-light btn-sm"
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </button>
+                <span className="meta">
+                  Page {pagination.page} of {pagination.totalPages}
+                </span>
+                <button
+                  className="btn btn-light btn-sm"
+                  type="button"
+                  disabled={page >= pagination.totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="shop-empty">
+            <div className="shop-empty-icon">
+              <IconPackage size={40} />
+            </div>
+            <h2>{hasFilters ? "No matches" : "Store is empty"}</h2>
+            <p>
+              {hasFilters
+                ? "Try a different search or clear filters to see everything."
+                : "Products added in the staff console will appear here."}
+            </p>
+            {hasFilters ? (
+              <button className="btn btn-dark" type="button" onClick={resetFilters}>
+                Clear filters
+              </button>
+            ) : (
+              <Link to="/" className="btn btn-light">
+                Back home
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
+
       <QuickViewModal
         product={quickViewProduct}
         onClose={() => setQuickViewProduct(null)}

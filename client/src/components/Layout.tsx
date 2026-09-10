@@ -143,6 +143,11 @@ export function Layout() {
               Sign in
             </NavLink>
           )}
+          {staff && (
+            <NavLink to="/staff" className={({ isActive }) => `mobile-nav-link ${isActive ? "active" : ""}`}>
+              Staff console
+            </NavLink>
+          )}
         </nav>
       </aside>
 

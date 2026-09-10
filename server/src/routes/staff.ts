@@ -1,8 +1,6 @@
 import { Router } from "express";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import multer from "multer";
-import { and, asc, desc, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { db } from "../db/index.js";
@@ -17,66 +15,67 @@ import {
   users,
 } from "../db/schema.js";
 import { requireRoles, type AuthedRequest } from "../middleware/auth.js";
-import { fulfillOrder, markOrderPaid } from "../services/orders.js";
+import { cancelOrder, fulfillOrder, markOrderPaid } from "../services/orders.js";
+import { putObject, safeStorageFilename } from "../lib/storage.js";
+import { ensureStoreConfig, saveStoreConfig, type StoreConfig } from "../lib/storeConfig.js";
 import { slugify } from "../lib/utils.js";
 
 const router = Router();
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadsDir = path.resolve(__dirname, "../../storage/uploads");
-const downloadsDir = path.resolve(__dirname, "../../storage/downloads");
 
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, uploadsDir),
-    filename: (_req, file, cb) => {
-      const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
-      cb(null, `${Date.now()}-${safe}`);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
 });
 
 const digitalUpload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, downloadsDir),
-    filename: (_req, file, cb) => {
-      const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
-      cb(null, `${Date.now()}-${safe}`);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 200 * 1024 * 1024 },
 });
 
 router.use(requireRoles("admin", "manager"));
 
-router.post("/uploads", upload.single("file"), (req, res) => {
+router.post("/uploads", upload.single("file"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "file required" });
   }
-  const url = `/uploads/${req.file.filename}`;
-  res.status(201).json({
-    url,
-    filename: req.file.filename,
-    originalName: req.file.originalname,
-    size: req.file.size,
-    mimeType: req.file.mimetype,
-  });
+  try {
+    const filename = safeStorageFilename(req.file.originalname);
+    const stored = await putObject("uploads", filename, req.file.buffer, req.file.mimetype);
+    res.status(201).json({
+      url: stored.publicUrl ?? `/uploads/${stored.key}`,
+      filename: stored.key,
+      originalName: req.file.originalname,
+      size: req.file.size,
+      mimeType: req.file.mimetype,
+    });
+  } catch (err) {
+    console.error("[storage] upload error", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "Upload failed" });
+  }
 });
 
-router.post("/uploads/digital", digitalUpload.single("file"), (req, res) => {
+router.post("/uploads/digital", digitalUpload.single("file"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "file required" });
   }
-  res.status(201).json({
-    path: req.file.filename,
-    filename: req.file.filename,
-    originalName: req.file.originalname,
-    size: req.file.size,
-  });
+  try {
+    const filename = safeStorageFilename(req.file.originalname);
+    const stored = await putObject("downloads", filename, req.file.buffer, req.file.mimetype);
+    res.status(201).json({
+      path: stored.key,
+      filename: stored.key,
+      originalName: req.file.originalname,
+      size: req.file.size,
+    });
+  } catch (err) {
+    console.error("[storage] digital upload error", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "Upload failed" });
+  }
 });
 
 router.get("/analytics", async (_req, res) => {
-  const threshold = Number(process.env.LOW_STOCK_THRESHOLD ?? 5);
+  const config = await ensureStoreConfig();
+  const threshold = config.lowStockThreshold;
 
   const [paidRevenue] = await db
     .select({
@@ -120,21 +119,82 @@ router.get("/analytics", async (_req, res) => {
     .from(products)
     .where(
       and(
-        lte(products.stock, threshold),
+        sql`(${products.stock} - ${products.reserved}) <= ${threshold}`,
         inArray(products.fulfillment, ["physical", "both"]),
         eq(products.active, true),
       ),
     )
-    .orderBy(asc(products.stock), asc(products.name));
+    .orderBy(sql`(${products.stock} - ${products.reserved})`, asc(products.name));
 
   res.json({
     paidRevenuePesewas: paidRevenue.total,
     ordersByStatus: Object.fromEntries(ordersByStatus.map((r) => [r.status, r.count])),
     repairsByStatus: Object.fromEntries(repairsByStatus.map((r) => [r.status, r.count])),
+    orderStatusCounts: Object.fromEntries(ordersByStatus.map((r) => [r.status, r.count])),
+    repairStatusCounts: Object.fromEntries(repairsByStatus.map((r) => [r.status, r.count])),
     topProducts,
     lowStock,
     lowStockThreshold: threshold,
   });
+});
+
+router.get("/settings", requireRoles("admin", "manager"), async (_req, res) => {
+  const config = await ensureStoreConfig();
+  res.json({
+    settings: config,
+    paystackEnabled: Boolean(process.env.PAYSTACK_SECRET_KEY?.trim()),
+    note: "Paystack keys remain in environment variables for security.",
+  });
+});
+
+router.put("/settings", requireRoles("admin"), async (req, res) => {
+  const schema = z.object({
+    shipping: z
+      .object({
+        accraPesewas: z.number().int().min(0),
+        otherPesewas: z.number().int().min(0),
+      })
+      .optional(),
+    momo: z
+      .object({
+        network: z.string().min(1).max(40),
+        number: z.string().min(1).max(40),
+        name: z.string().min(1).max(120),
+      })
+      .optional(),
+    bank: z
+      .object({
+        bankName: z.string().min(1).max(120),
+        accountNumber: z.string().min(1).max(40),
+        accountName: z.string().min(1).max(120),
+      })
+      .optional(),
+    pickup: z
+      .object({
+        name: z.string().min(1).max(120),
+        address: z.string().max(240),
+        landmark: z.string().max(240),
+        hours: z.string().max(120),
+        mapUrl: z.string().max(500),
+      })
+      .optional(),
+    store: z
+      .object({
+        phone: z.string().max(40),
+        whatsapp: z.string().max(40),
+        email: z.string().email().or(z.literal("")),
+      })
+      .optional(),
+    lowStockThreshold: z.number().int().min(0).max(1000).optional(),
+  });
+
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid store settings", details: parsed.error.flatten() });
+  }
+
+  const settings = await saveStoreConfig(parsed.data as Partial<StoreConfig>);
+  res.json({ settings, ok: true });
 });
 
 router.get("/dashboard", async (_req, res) => {
@@ -228,7 +288,7 @@ router.patch("/orders/:id", async (req, res) => {
   }
 
   if (parsed.data.status === "fulfilled") {
-    if (existing.status !== "paid" && existing.status !== "awaiting_pickup") {
+    if (existing.status !== "paid") {
       await markOrderPaid(existing.id);
     }
     await fulfillOrder(existing.id);
@@ -236,6 +296,11 @@ router.patch("/orders/:id", async (req, res) => {
       where: eq(orders.id, existing.id),
       with: { items: { with: { downloadTokens: true } } },
     });
+    return res.json({ order: updated });
+  }
+
+  if (parsed.data.status === "cancelled") {
+    const updated = await cancelOrder(existing.id);
     return res.json({ order: updated });
   }
 

@@ -5,8 +5,10 @@ import { z } from "zod";
 import { db } from "../db/index.js";
 import { orderItems, orders, products } from "../db/schema.js";
 import { clearCart, getCartWithItems } from "../services/cart.js";
-import { markOrderPaid } from "../services/orders.js";
+import { markOrderPaid, reserveStockForOrder } from "../services/orders.js";
 import { notifyOrderEvent } from "../lib/notify.js";
+import { availableStock } from "../lib/inventory.js";
+import { ensureStoreConfig } from "../lib/storeConfig.js";
 import { initializeTransaction, isPaystackConfigured, verifyTransaction } from "../lib/paystack.js";
 import { paymentInstructions, shippingPesewasForRegion } from "../lib/utils.js";
 import { getCartSessionId, type AuthedRequest } from "../middleware/auth.js";
@@ -36,6 +38,7 @@ router.get("/payment-info", (_req, res) => {
 });
 
 router.post("/", async (req: AuthedRequest, res) => {
+  await ensureStoreConfig();
   const parsed = checkoutSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid checkout data", details: parsed.error.flatten() });
@@ -84,7 +87,7 @@ router.post("/", async (req: AuthedRequest, res) => {
       (product, index) =>
         product &&
         product.fulfillment !== "digital" &&
-        product.stock < cart.items[index].quantity,
+        availableStock(product) < cart.items[index].quantity,
     )
   ) {
     return res.status(409).json({ error: "One or more items no longer have enough stock" });
@@ -146,6 +149,16 @@ router.post("/", async (req: AuthedRequest, res) => {
       digitalAssetPath: productRows[index]?.digitalAssetPath ?? null,
     })),
   );
+
+  try {
+    await reserveStockForOrder(order.id);
+  } catch (err) {
+    await db.delete(orderItems).where(eq(orderItems.orderId, order.id));
+    await db.delete(orders).where(eq(orders.id, order.id));
+    return res.status(409).json({
+      error: err instanceof Error ? err.message : "Unable to reserve stock",
+    });
+  }
 
   await clearCart(cart.cartId);
   await notifyOrderEvent(order, "created");

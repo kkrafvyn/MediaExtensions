@@ -58,6 +58,11 @@ router.post("/track", async (req, res) => {
     return res.status(404).json({ error: "Order not found" });
   }
 
+  const downloads =
+    order.status === "paid" || order.status === "fulfilled"
+      ? await getOrderDownloads(order.id)
+      : [];
+
   res.json({
     order: {
       id: order.id,
@@ -75,6 +80,7 @@ router.post("/track", async (req, res) => {
         fulfillment: item.fulfillment,
       })),
     },
+    downloads,
   });
 });
 
@@ -143,10 +149,13 @@ router.get("/:id", async (req: AuthedRequest, res) => {
   }
 
   const sessionId = getCartSessionId(req);
+  const emailQuery =
+    typeof req.query.email === "string" ? req.query.email.toLowerCase() : "";
   const isOwner =
     (req.user && order.userId === req.user.id) ||
     (!!order.sessionId && order.sessionId === sessionId) ||
-    (req.user && (req.user.role === "admin" || req.user.role === "manager"));
+    (req.user && (req.user.role === "admin" || req.user.role === "manager")) ||
+    (emailQuery && emailQuery === order.email.toLowerCase());
 
   if (!isOwner) {
     return res.status(403).json({ error: "Not allowed to view this order" });

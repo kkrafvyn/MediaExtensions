@@ -2,6 +2,7 @@ import { Router } from "express";
 import { and, asc, count, eq, ilike, or } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { categories, products } from "../db/schema.js";
+import { toPublicProduct } from "../lib/inventory.js";
 
 const router = Router();
 
@@ -52,7 +53,10 @@ router.get("/", async (req, res) => {
   });
 
   res.json({
-    products: rows,
+    products: rows.map((row) => ({
+      ...toPublicProduct(row),
+      category: row.category,
+    })),
     pagination: {
       page,
       limit,
@@ -70,7 +74,12 @@ router.get("/:slug", async (req, res) => {
   if (!product) {
     return res.status(404).json({ error: "Product not found" });
   }
-  res.json({ product });
+  res.json({
+    product: {
+      ...toPublicProduct(product),
+      category: product.category,
+    },
+  });
 });
 
 export default router;

@@ -251,7 +251,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                   ) : (
                     <>
                       <IconBolt size={14} />
-                      <span>All digital downloads delivered instantly via email & vault.</span>
+                      <span>All digital downloads delivered via email & account vault after payment.</span>
                     </>
                   )}
                 </span>

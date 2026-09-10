@@ -1,37 +1,29 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import { formatGhs, api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "./Toast";
+import { FulfillmentBadge } from "./Icons";
 import type { Product } from "../types";
 
 type ProductCardProps = {
   product: Product;
   onQuickView?: (product: Product) => void;
   onOpenCart?: () => void;
+  style?: CSSProperties;
 };
 
-export function ProductCard({ product, onQuickView, onOpenCart }: ProductCardProps) {
+export function ProductCard({ product, onQuickView, onOpenCart, style }: ProductCardProps) {
   const { refreshCart } = useAuth();
   const [adding, setAdding] = useState(false);
 
-  const fulfillmentClass =
-    product.fulfillment === "digital"
-      ? "badge-digital"
-      : product.fulfillment === "physical"
-        ? "badge-physical"
-        : "badge-both";
-
-  const fulfillmentLabel =
-    product.fulfillment === "digital"
-      ? "Digital"
-      : product.fulfillment === "physical"
-        ? "Physical"
-        : "Bundle";
+  const isDigital = product.fulfillment === "digital";
+  const outOfStock = !isDigital && product.stock <= 0;
 
   async function handleQuickAdd(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
+    if (outOfStock) return;
     setAdding(true);
     try {
       await api("/api/cart/items", {
@@ -49,49 +41,70 @@ export function ProductCard({ product, onQuickView, onOpenCart }: ProductCardPro
   }
 
   return (
-    <Link to={`/product/${product.slug}`} className="product-tile">
-      <div className="thumb">
-        <div className="product-badge-overlay">
-          <span className={`badge ${fulfillmentClass}`}>{fulfillmentLabel}</span>
-        </div>
-        <img
-          src={product.images?.[0] || "/images/product-placeholder.svg"}
-          alt={product.name}
-        />
-        <div className="product-quick-actions">
-          {onQuickView && (
-            <button
-              className="product-quick-btn"
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onQuickView(product);
-              }}
-              aria-label={`Quick view ${product.name}`}
+    <article className={`product-tile${outOfStock ? " is-sold-out" : ""}`} style={style}>
+      <Link to={`/product/${product.slug}`} className="product-tile-link">
+        <div className="thumb">
+          <div className="product-badge-overlay">
+            <span
+              className={`badge ${
+                product.fulfillment === "digital"
+                  ? "badge-digital"
+                  : product.fulfillment === "physical"
+                    ? "badge-physical"
+                    : "badge-both"
+              }`}
             >
-              View
-            </button>
+              <FulfillmentBadge fulfillment={product.fulfillment} variant="short" iconSize={11} />
+            </span>
+            {product.featured && <span className="badge badge-featured">Featured</span>}
+            {outOfStock && <span className="badge badge-sold-out">Sold out</span>}
+          </div>
+          <img
+            src={product.images?.[0] || "/images/product-placeholder.svg"}
+            alt={product.name}
+            loading="lazy"
+          />
+        </div>
+
+        <div className="body">
+          {product.category?.name && (
+            <p className="product-card-category">{product.category.name}</p>
           )}
+          <h3>{product.name}</h3>
+          <div className="product-card-footer">
+            <div className="product-price">{formatGhs(product.pricePesewas)}</div>
+            {!isDigital && product.stock > 0 && product.stock <= 5 && (
+              <span className="product-stock-hint">Only {product.stock} left</span>
+            )}
+          </div>
+        </div>
+      </Link>
+
+      <div className="product-quick-actions">
+        {onQuickView && (
           <button
             className="product-quick-btn"
             type="button"
-            disabled={adding}
-            onClick={handleQuickAdd}
-            aria-label={`Add ${product.name} to bag`}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onQuickView(product);
+            }}
+            aria-label={`Quick view ${product.name}`}
           >
-            {adding ? "…" : "Add"}
+            View
           </button>
-        </div>
+        )}
+        <button
+          className="product-quick-btn product-quick-btn-primary"
+          type="button"
+          disabled={adding || outOfStock}
+          onClick={handleQuickAdd}
+          aria-label={`Add ${product.name} to bag`}
+        >
+          {adding ? "…" : outOfStock ? "Sold out" : "Add"}
+        </button>
       </div>
-      <div className="body">
-        <h3>{product.name}</h3>
-        {product.description && <p className="desc">{product.description}</p>}
-        <div className="product-card-footer">
-          <div className="product-price">{formatGhs(product.pricePesewas)}</div>
-          <span className="product-cta-badge">Learn more</span>
-        </div>
-      </div>
-    </Link>
+    </article>
   );
 }
