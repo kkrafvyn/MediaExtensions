@@ -4,14 +4,17 @@ let cached;
 
 async function getHandler() {
   if (!cached) {
-    const { default: app } = await import("../dist/app.js");
+    const [{ default: app }, { warmDb }] = await Promise.all([
+      import("../dist/app.js"),
+      import("../dist/db/index.js"),
+    ]);
+    await warmDb();
     cached = serverless(app);
   }
   return cached;
 }
 
 export default async function handler(req, res) {
-  // Fast path — never touch Express/DB for health checks
   const url = req.url ?? "";
   if (url === "/api/health" || url.startsWith("/api/health?")) {
     res.statusCode = 200;

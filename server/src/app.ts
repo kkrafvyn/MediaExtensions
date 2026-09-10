@@ -51,9 +51,8 @@ const allowedOrigins = new Set(
   ].filter(Boolean) as string[],
 );
 
-ensureLocalStorageDirs();
-// Avoid eager DB work during Vercel cold start
-if (process.env.VERCEL !== "1") {
+if (!process.env.VERCEL) {
+  ensureLocalStorageDirs();
   void loadStoreConfig();
 }
 
