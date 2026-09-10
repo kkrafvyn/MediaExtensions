@@ -14,7 +14,7 @@ function run(command, args, cwd) {
 }
 
 console.log("Monorepo root:", root);
-run("npm", ["install"], root);
+run("npm", ["install", "--include=dev"], root);
 run("npm", ["run", "build", "-w", "client"], root);
 run("npm", ["run", "build", "-w", "server"], root);
 
