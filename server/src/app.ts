@@ -52,6 +52,7 @@ const allowedOrigins = new Set(
 );
 
 ensureLocalStorageDirs();
+// Avoid eager DB work during Vercel cold start
 if (process.env.VERCEL !== "1") {
   void loadStoreConfig();
 }
