@@ -14,22 +14,29 @@ function run(command, args, cwd) {
 }
 
 function ensureServerDependency(pkgScope, pkgName) {
-  const from = path.join(root, "node_modules", pkgScope, pkgName);
-  if (!existsSync(from)) {
-    console.warn(`Missing ${pkgScope}/${pkgName} at monorepo root — skip copy`);
+  const fromCandidates = [
+    path.join(serverDir, "node_modules", pkgScope, pkgName),
+    path.join(root, "node_modules", pkgScope, pkgName),
+  ];
+  const from = fromCandidates.find((candidate) => existsSync(candidate));
+  if (!from) {
+    console.warn(`Missing ${pkgScope}/${pkgName} — skip copy`);
+    console.warn("Looked in:", fromCandidates.join(" | "));
     return;
   }
 
   const targets = [
     path.join(serverDir, "node_modules", pkgScope, pkgName),
     path.join(serverDir, "node_modules", "drizzle-orm", "node_modules", pkgScope, pkgName),
+    path.join(root, "node_modules", "drizzle-orm", "node_modules", pkgScope, pkgName),
   ];
 
   for (const to of targets) {
+    if (path.resolve(to) === path.resolve(from)) continue;
     mkdirSync(path.dirname(to), { recursive: true });
     rmSync(to, { recursive: true, force: true });
     cpSync(from, to, { recursive: true });
-    console.log(`Copied ${pkgScope}/${pkgName} -> ${path.relative(serverDir, to)}`);
+    console.log(`Copied ${pkgScope}/${pkgName} -> ${to}`);
   }
 }
 
