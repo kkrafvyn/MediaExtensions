@@ -8,9 +8,8 @@ import cookieParser from "cookie-parser";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import rateLimit from "express-rate-limit";
-import pg from "pg";
 import { eq } from "drizzle-orm";
-import { db } from "./db/index.js";
+import { db, pool } from "./db/index.js";
 import { users } from "./db/schema.js";
 import type { AuthedRequest } from "./middleware/auth.js";
 import { GH_REGIONS, paymentInstructions } from "./lib/utils.js";
@@ -58,11 +57,6 @@ void loadStoreConfig();
 export const app = express();
 const PgSession = connectPgSimple(session);
 
-const sessionPool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
-
 app.set("trust proxy", 1);
 app.use(
   cors({
@@ -92,7 +86,8 @@ app.use(cookieParser());
 app.use(
   session({
     store: new PgSession({
-      pool: sessionPool,
+      // Neon serverless Pool (WebSocket) — node `pg` TCP hangs on Vercel
+      pool: pool as never,
       createTableIfMissing: true,
     }),
     secret: process.env.SESSION_SECRET ?? "dev-secret",
