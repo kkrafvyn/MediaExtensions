@@ -92,9 +92,27 @@ app.get("/api/health", (_req, res) => {
 });
 
 if (process.env.VERCEL === "1") {
-  // Cookie jar only — no server session store on serverless (store.get can stall the isolate).
+  // No server session store on serverless — attach a lightweight stub.
   app.use((req, _res, next) => {
-    (req as express.Request & { session: Record<string, unknown> }).session = {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (req as any).session = Object.assign(Object.create(null), {
+      userId: undefined,
+      destroy(cb?: (err?: Error) => void) {
+        cb?.();
+      },
+      reload(cb?: (err?: Error) => void) {
+        cb?.();
+      },
+      regenerate(cb?: (err?: Error) => void) {
+        cb?.();
+      },
+      save(cb?: (err?: Error) => void) {
+        cb?.();
+      },
+      touch(cb?: (err?: Error) => void) {
+        cb?.();
+      },
+    });
     next();
   });
 } else {
