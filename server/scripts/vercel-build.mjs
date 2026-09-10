@@ -45,6 +45,7 @@ console.log("Monorepo root:", root);
 run("npm", ["install", "--include=dev"], root);
 run("npm", ["run", "build", "-w", "client"], root);
 run("npm", ["run", "build", "-w", "server"], root);
+run("node", ["scripts/bundle-api.mjs"], serverDir);
 
 // Vercel packs server/ as the function root; workspace hoisting leaves some
 // packages only in the monorepo root node_modules. Copy what the API needs.
