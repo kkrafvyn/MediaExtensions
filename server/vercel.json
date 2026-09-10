@@ -6,7 +6,7 @@
   "outputDirectory": "www",
   "functions": {
     "api/index.mjs": {
-      "includeFiles": "node_modules/@neondatabase/serverless/**"
+      "includeFiles": "{node_modules/@neondatabase/serverless/**,node_modules/drizzle-orm/node_modules/@neondatabase/serverless/**,dist/**}"
     }
   },
   "rewrites": [

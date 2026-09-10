@@ -15,16 +15,22 @@ function run(command, args, cwd) {
 
 function ensureServerDependency(pkgScope, pkgName) {
   const from = path.join(root, "node_modules", pkgScope, pkgName);
-  const toDir = path.join(serverDir, "node_modules", pkgScope);
-  const to = path.join(toDir, pkgName);
   if (!existsSync(from)) {
     console.warn(`Missing ${pkgScope}/${pkgName} at monorepo root — skip copy`);
     return;
   }
-  mkdirSync(toDir, { recursive: true });
-  rmSync(to, { recursive: true, force: true });
-  cpSync(from, to, { recursive: true });
-  console.log(`Copied ${pkgScope}/${pkgName} -> server/node_modules`);
+
+  const targets = [
+    path.join(serverDir, "node_modules", pkgScope, pkgName),
+    path.join(serverDir, "node_modules", "drizzle-orm", "node_modules", pkgScope, pkgName),
+  ];
+
+  for (const to of targets) {
+    mkdirSync(path.dirname(to), { recursive: true });
+    rmSync(to, { recursive: true, force: true });
+    cpSync(from, to, { recursive: true });
+    console.log(`Copied ${pkgScope}/${pkgName} -> ${path.relative(serverDir, to)}`);
+  }
 }
 
 console.log("Monorepo root:", root);
