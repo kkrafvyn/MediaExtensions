@@ -15,6 +15,7 @@ function run(command, args, cwd) {
 
 function ensureServerDependency(pkgScope, pkgName) {
   const fromCandidates = [
+    path.join(serverDir, "vendor", "neondatabase-serverless"),
     path.join(serverDir, "node_modules", pkgScope, pkgName),
     path.join(root, "node_modules", pkgScope, pkgName),
   ];
