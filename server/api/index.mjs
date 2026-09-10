@@ -1,4 +1,6 @@
-﻿import serverless from "serverless-http";
+﻿import "@neondatabase/serverless";
+import "drizzle-orm/neon-http";
+import serverless from "serverless-http";
 
 let cached;
 

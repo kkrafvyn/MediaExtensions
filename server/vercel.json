@@ -4,6 +4,11 @@
   "installCommand": "npm install",
   "buildCommand": "npm run vercel-build",
   "outputDirectory": "www",
+  "functions": {
+    "api/index.mjs": {
+      "includeFiles": "{dist/**,node_modules/@neondatabase/**,../node_modules/@neondatabase/**,../node_modules/drizzle-orm/**,node_modules/drizzle-orm/**}"
+    }
+  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/uploads/(.*)", "destination": "/api" },
