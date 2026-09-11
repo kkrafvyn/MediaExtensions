@@ -9,9 +9,18 @@ type Props = {
   slides: CarouselSlide[];
   intervalMs?: number;
   className?: string;
+  /** Fixed full-viewport app background */
+  fixed?: boolean;
+  showDots?: boolean;
 };
 
-export function BackgroundCarousel({ slides, intervalMs = 5500, className = "" }: Props) {
+export function BackgroundCarousel({
+  slides,
+  intervalMs = 7000,
+  className = "",
+  fixed = false,
+  showDots = true,
+}: Props) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
 
@@ -27,7 +36,7 @@ export function BackgroundCarousel({ slides, intervalMs = 5500, className = "" }
 
   return (
     <div
-      className={`bg-carousel ${className}`.trim()}
+      className={`bg-carousel${fixed ? " bg-carousel-fixed" : ""} ${className}`.trim()}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
@@ -43,7 +52,7 @@ export function BackgroundCarousel({ slides, intervalMs = 5500, className = "" }
         ))}
         <div className="bg-carousel-veil" />
       </div>
-      {slides.length > 1 && (
+      {showDots && slides.length > 1 && (
         <div className="bg-carousel-dots" role="tablist" aria-label="Background slides">
           {slides.map((slide, i) => (
             <button
@@ -61,21 +70,9 @@ export function BackgroundCarousel({ slides, intervalMs = 5500, className = "" }
   );
 }
 
-export const HOME_CAROUSEL: CarouselSlide[] = [
+export const APP_CAROUSEL: CarouselSlide[] = [
   { src: "/images/carousel/carousel-camera.jpg", alt: "Professional camera gear" },
   { src: "/images/carousel/carousel-editing.jpg", alt: "Color grading workstation" },
   { src: "/images/carousel/carousel-gear.jpg", alt: "Creator production kit" },
   { src: "/images/carousel/carousel-repair.jpg", alt: "Device repair studio" },
-];
-
-export const SHOP_CAROUSEL: CarouselSlide[] = [
-  { src: "/images/carousel/carousel-gear.jpg", alt: "Creator production kit" },
-  { src: "/images/carousel/carousel-camera.jpg", alt: "Professional camera gear" },
-  { src: "/images/carousel/carousel-editing.jpg", alt: "Editing workstation" },
-];
-
-export const REPAIR_CAROUSEL: CarouselSlide[] = [
-  { src: "/images/carousel/carousel-repair.jpg", alt: "Device repair workbench" },
-  { src: "/images/carousel/carousel-camera.jpg", alt: "Camera equipment" },
-  { src: "/images/carousel/carousel-gear.jpg", alt: "Production accessories" },
 ];

@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatGhs } from "../lib/api";
 import { ProductCard } from "../components/ProductCard";
-import { BackgroundCarousel, HOME_CAROUSEL } from "../components/BackgroundCarousel";
 import type { Product, RepairService } from "../types";
 
 export function HomePage() {
@@ -24,10 +23,9 @@ export function HomePage() {
 
   return (
     <>
-      <section className="hero hero-with-carousel">
-        <BackgroundCarousel slides={HOME_CAROUSEL} />
+      <section className="hero">
         <div className="container hero-copy">
-          <p className="eyebrow eyebrow-on-media">Media Extensions · Ghana</p>
+          <p className="eyebrow">Media Extensions · Ghana</p>
           <h1>
             Creator tools.
             <br />
@@ -87,9 +85,9 @@ export function HomePage() {
             </div>
           ) : (
             <div className="empty">
-              <p>Products will appear here once added in the staff console.</p>
-              <Link to="/shop" className="btn btn-primary" style={{ marginTop: "1rem" }}>
-                Browse shop
+              <p>No products in the store yet. Check back soon.</p>
+              <Link to="/repairs" className="btn btn-primary" style={{ marginTop: "1rem" }}>
+                Book a repair
               </Link>
             </div>
           )}

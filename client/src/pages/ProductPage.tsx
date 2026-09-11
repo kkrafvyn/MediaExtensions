@@ -277,53 +277,44 @@ export function ProductPage() {
                 className={`pdp-tab-btn ${activeTab === "specs" ? "active" : ""}`}
                 onClick={() => setActiveTab("specs")}
               >
-                Compatibility
+                Details
               </button>
               <button
                 className={`pdp-tab-btn ${activeTab === "guarantee" ? "active" : ""}`}
                 onClick={() => setActiveTab("guarantee")}
               >
-                Warranty & Returns
+                Returns
               </button>
             </div>
 
             <div className="pdp-tab-content">
               {activeTab === "overview" && (
                 <div>
-                  <p style={{ marginBottom: "0.75rem" }}>
-                    When you purchase <strong>{product.name}</strong>, you receive:
+                  <p style={{ marginBottom: "0.75rem", whiteSpace: "pre-wrap" }}>
+                    {product.description || "Product details will appear here once added by the store."}
                   </p>
-                  <ul style={{ paddingLeft: "1.2rem", lineHeight: 1.7 }}>
-                    <li>Full high-resolution master asset files (.CUBE / .WAV / Hardware component).</li>
-                    <li>Step-by-step setup and installation guide PDF.</li>
-                    <li>Lifetime access from your Media Extensions account downloads vault.</li>
-                    <li>Direct customer support via WhatsApp and email.</li>
-                  </ul>
                 </div>
               )}
 
               {activeTab === "specs" && (
                 <div>
-                  <p style={{ marginBottom: "0.75rem" }}>
-                    Engineered for professional production environments:
-                  </p>
                   <ul style={{ paddingLeft: "1.2rem", lineHeight: 1.7 }}>
-                    <li><strong>Video Editors:</strong> Adobe Premiere Pro, DaVinci Resolve Studio, Final Cut Pro X, Avid, CapCut Desktop.</li>
-                    <li><strong>Audio / Music:</strong> Logic Pro, FL Studio, Ableton Live, Adobe Audition.</li>
-                    <li><strong>OS Platforms:</strong> macOS (Apple Silicon M1/M2/M3/M4 & Intel), Windows 10/11, iPadOS.</li>
+                    <li><strong>Format:</strong> {product.fulfillment === "digital" ? "Digital download" : product.fulfillment === "physical" ? "Physical item" : "Digital + physical"}</li>
+                    {product.fulfillment !== "digital" && (
+                      <li><strong>Stock:</strong> {product.stock > 0 ? `${product.stock} available` : "Out of stock"}</li>
+                    )}
+                    {product.category?.name && (
+                      <li><strong>Category:</strong> {product.category.name}</li>
+                    )}
                   </ul>
                 </div>
               )}
 
               {activeTab === "guarantee" && (
                 <div>
-                  <p style={{ marginBottom: "0.75rem" }}>
-                    Our satisfaction and reliability commitment:
-                  </p>
                   <ul style={{ paddingLeft: "1.2rem", lineHeight: 1.7 }}>
-                    <li><strong>Digital Products:</strong> If a file is defective or incompatible, our support team will replace or resolve it immediately.</li>
-                    <li><strong>Physical Gear:</strong> 7-day hassle-free replacement on manufacturer defects + manufacturer warranty.</li>
-                    <li><strong>Repairs:</strong> 90-day comprehensive guarantee on all replacement displays, batteries, and logic board services.</li>
+                    <li>See our <Link to="/returns">Returns</Link> and <Link to="/terms">Terms</Link> for warranty and refund details.</li>
+                    <li>Device repairs include a 90-day service guarantee when booked through Media Extensions.</li>
                   </ul>
                 </div>
               )}

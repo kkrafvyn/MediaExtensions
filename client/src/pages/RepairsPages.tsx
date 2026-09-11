@@ -12,7 +12,6 @@ import {
   IconCamera,
   IconWrench,
 } from "../components/Icons";
-import { BackgroundCarousel, REPAIR_CAROUSEL } from "../components/BackgroundCarousel";
 
 export function RepairsPage() {
   const [services, setServices] = useState<RepairService[]>([]);
@@ -27,10 +26,9 @@ export function RepairsPage() {
 
   return (
     <div className="page repairs-page">
-      <header className="repairs-hero repairs-hero-with-carousel">
-        <BackgroundCarousel slides={REPAIR_CAROUSEL} intervalMs={6500} />
+      <header className="repairs-hero">
         <div className="container repairs-hero-inner">
-          <p className="eyebrow eyebrow-on-media page-eyebrow">
+          <p className="eyebrow page-eyebrow">
             Certified GSM Hardware Studio · Accra
           </p>
           <h1>Precision device repair & diagnostics.</h1>

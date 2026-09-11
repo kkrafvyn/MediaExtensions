@@ -6,6 +6,7 @@ import { ToastHost } from "./Toast";
 import { Footer } from "./Footer";
 import { CartDrawer } from "./CartDrawer";
 import { SearchModal } from "./SearchModal";
+import { BackgroundCarousel, APP_CAROUSEL } from "./BackgroundCarousel";
 import { IconClose, IconMenu } from "./Icons";
 
 export function Layout() {
@@ -51,7 +52,8 @@ export function Layout() {
   }, []);
 
   return (
-    <div className="shell">
+    <div className="shell shell-on-media">
+      <BackgroundCarousel slides={APP_CAROUSEL} fixed showDots={false} />
       <header className="nav">
         <div className="container nav-inner">
           <Link to="/" className="brand-link">

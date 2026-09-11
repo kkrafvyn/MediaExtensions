@@ -79,10 +79,6 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     navigate(`/product/${slug}`);
   }
 
-  function handleQuickSearch(term: string) {
-    setQuery(term);
-  }
-
   if (!isOpen) return null;
 
   return (
@@ -224,22 +220,19 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                   marginBottom: "0.75rem",
                 }}
               >
-                Suggested Searches
+                Quick links
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-                {[
-                  "Cinematic LUTs",
-                  "Sound FX Library",
-                  "Creator Presets",
-                  "Camera Rigs",
-                  "Wireless Mic",
-                  "iPhone Screen Swap",
-                  "MacBook Battery",
-                ].map((tag) => (
+                {["Shop", "Repairs", "Track order"].map((tag) => (
                   <button
                     key={tag}
                     className="issue-tag-chip"
-                    onClick={() => handleQuickSearch(tag)}
+                    onClick={() => {
+                      onClose();
+                      if (tag === "Shop") navigate("/shop");
+                      else if (tag === "Repairs") navigate("/repairs");
+                      else navigate("/track");
+                    }}
                   >
                     {tag}
                   </button>
