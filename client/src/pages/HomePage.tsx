@@ -47,23 +47,6 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="trust-section">
-        <div className="container trust-grid-modern">
-          <div className="trust-card">
-            <strong>Instant downloads</strong>
-            <p>LUTs, presets, and templates delivered after payment is confirmed.</p>
-          </div>
-          <div className="trust-card">
-            <strong>Nationwide delivery</strong>
-            <p>Express courier across all 16 regions. Accra pickup available.</p>
-          </div>
-          <div className="trust-card">
-            <strong>GSM repair studio</strong>
-            <p>Screen, battery, and board-level repairs with a 90-day warranty.</p>
-          </div>
-        </div>
-      </section>
-
       <section className="section">
         <div className="container">
           <div className="section-head" style={{ textAlign: "center", alignItems: "center" }}>
@@ -108,22 +91,7 @@ export function HomePage() {
             <p>Book online, drop off at our studio, and track progress from your account.</p>
           </div>
 
-          <div className="repair-steps-grid">
-            {[
-              { n: "1", h: "Book", p: "Choose a service and describe the issue." },
-              { n: "2", h: "Drop off", p: "Visit our Accra studio or arrange courier pickup." },
-              { n: "3", h: "Repair", p: "OEM parts, diagnostics, and quality checks." },
-              { n: "4", h: "Collect", p: "Pick up your device with warranty coverage." },
-            ].map((step) => (
-              <div className="repair-step-card" key={step.n}>
-                <span className="repair-step-num">{step.n}</span>
-                <h4>{step.h}</h4>
-                <p>{step.p}</p>
-              </div>
-            ))}
-          </div>
-
-          {services.length > 0 && (
+          {services.length > 0 ? (
             <div className="service-grid-modern">
               {services.map((s) => (
                 <div key={s.id} className="service-card-modern panel">
@@ -131,7 +99,7 @@ export function HomePage() {
                   <p className="service-desc">{s.description}</p>
                   <div className="service-card-price-row">
                     <span className="service-price-tag">
-                      {s.pricePesewas != null ? formatGhs(s.pricePesewas) : "Quote on request"}
+                      {s.pricePesewas != null ? formatGhs(s.pricePesewas) : "Price set on diagnosis"}
                     </span>
                     <Link to={`/repairs/book?service=${s.id}`} className="btn btn-primary btn-sm">
                       Book
@@ -140,7 +108,11 @@ export function HomePage() {
                 </div>
               ))}
             </div>
-          )}
+          ) : !loading ? (
+            <div className="empty">
+              <p>Repair services will appear here once published by the store.</p>
+            </div>
+          ) : null}
 
           <div className="cta-row" style={{ justifyContent: "center", marginTop: "2rem" }}>
             <Link to="/repairs/book" className="btn btn-primary">

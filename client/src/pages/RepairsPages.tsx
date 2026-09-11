@@ -40,30 +40,6 @@ export function RepairsPage() {
 
       <div className="container">
 
-      {/* 4 Process Cards */}
-      <div className="repair-steps-grid" style={{ margin: "2rem 0 3.5rem" }}>
-        <div className="panel" style={{ background: "var(--surface)" }}>
-          <span style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", fontWeight: 800, color: "var(--accent)" }}>01</span>
-          <h4 style={{ margin: "0.4rem 0 0.2rem" }}>Book Online</h4>
-          <p className="meta" style={{ fontSize: "0.85rem" }}>Specify your device and issue to receive an immediate estimate.</p>
-        </div>
-        <div className="panel" style={{ background: "var(--surface)" }}>
-          <span style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", fontWeight: 800, color: "var(--accent)" }}>02</span>
-          <h4 style={{ margin: "0.4rem 0 0.2rem" }}>Drop Off / Courier</h4>
-          <p className="meta" style={{ fontSize: "0.85rem" }}>Bring to our Accra hub or request swift delivery rider pickup.</p>
-        </div>
-        <div className="panel" style={{ background: "var(--surface)" }}>
-          <span style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", fontWeight: 800, color: "var(--accent)" }}>03</span>
-          <h4 style={{ margin: "0.4rem 0 0.2rem" }}>Lab Repair & QA</h4>
-          <p className="meta" style={{ fontSize: "0.85rem" }}>OEM components, precision testing, and data preservation.</p>
-        </div>
-        <div className="panel" style={{ background: "var(--surface)" }}>
-          <span style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", fontWeight: 800, color: "var(--accent)" }}>04</span>
-          <h4 style={{ margin: "0.4rem 0 0.2rem" }}>90-Day Warranty</h4>
-          <p className="meta" style={{ fontSize: "0.85rem" }}>Track progress online and collect your restored hardware.</p>
-        </div>
-      </div>
-
       {/* IMEI Check Banner */}
       <div
         className="panel"
@@ -110,13 +86,10 @@ export function RepairsPage() {
             <div className="product-skeleton" key={i} />
           ))}
         </div>
-      ) : (
+      ) : services.length ? (
         <div className="product-grid">
           {services.map((s) => (
             <div key={s.id} className="panel" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-              <span className="badge badge-repair" style={{ width: "fit-content", marginBottom: "0.75rem" }}>
-                Hardware Service
-              </span>
               <h3 style={{ fontSize: "1.2rem", marginBottom: "0.4rem" }}>{s.name}</h3>
               <p className="meta" style={{ flex: 1, marginBottom: "1.25rem", lineHeight: 1.5 }}>
                 {s.description}
@@ -125,7 +98,7 @@ export function RepairsPage() {
                 <div>
                   <span style={{ fontSize: "0.75rem", color: "var(--muted)", display: "block" }}>Price</span>
                   <strong style={{ fontSize: "1.15rem", color: "var(--ink)" }}>
-                    {s.pricePesewas != null ? formatGhs(s.pricePesewas) : "Quote on diagnosis"}
+                    {s.pricePesewas != null ? formatGhs(s.pricePesewas) : "Price set on diagnosis"}
                   </strong>
                 </div>
                 <Link to={`/repairs/book?service=${s.id}`} className="btn btn-primary btn-sm">
@@ -134,6 +107,13 @@ export function RepairsPage() {
               </div>
             </div>
           ))}
+        </div>
+      ) : (
+        <div className="empty">
+          <p>No repair services listed yet. An admin can add them in Staff → Repair services.</p>
+          <Link to="/repairs/book" className="btn btn-primary" style={{ marginTop: "1rem" }}>
+            Request a diagnosis
+          </Link>
         </div>
       )}
 

@@ -1162,7 +1162,7 @@ export function StaffRepairServices() {
   const [form, setForm] = useState({
     name: "",
     description: "",
-    pricePesewas: 15000,
+    priceGhs: "",
   });
 
   async function load() {
@@ -1176,11 +1176,20 @@ export function StaffRepairServices() {
 
   async function create(e: FormEvent) {
     e.preventDefault();
+    const pricePesewas =
+      form.priceGhs.trim() === "" ? null : Math.round(Number(form.priceGhs) * 100);
+    if (form.priceGhs.trim() !== "" && (!Number.isFinite(pricePesewas) || (pricePesewas ?? 0) < 0)) {
+      return;
+    }
     await api("/api/staff/repair-services", {
       method: "POST",
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        name: form.name,
+        description: form.description,
+        pricePesewas,
+      }),
     });
-    setForm({ name: "", description: "", pricePesewas: 15000 });
+    setForm({ name: "", description: "", priceGhs: "" });
     await load();
   }
 
@@ -1188,6 +1197,9 @@ export function StaffRepairServices() {
     <div className="stack">
       <form className="panel stack" onSubmit={create}>
         <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Add repair service</h2>
+        <p className="meta" style={{ margin: 0 }}>
+          Prices you set here show on the storefront. Leave blank only if the quote is set after diagnosis.
+        </p>
         <div className="form-grid two">
           <label>
             Name
@@ -1198,11 +1210,14 @@ export function StaffRepairServices() {
             />
           </label>
           <label>
-            Price (pesewas)
+            Price (GHS)
             <input
               type="number"
-              value={form.pricePesewas}
-              onChange={(e) => setForm({ ...form, pricePesewas: Number(e.target.value) })}
+              min="0"
+              step="0.01"
+              value={form.priceGhs}
+              onChange={(e) => setForm({ ...form, priceGhs: e.target.value })}
+              placeholder="e.g. 180.00"
             />
           </label>
         </div>
@@ -1224,7 +1239,7 @@ export function StaffRepairServices() {
           <thead>
             <tr>
               <th>Service</th>
-              <th>Price (pesewas)</th>
+              <th>Price (GHS)</th>
               <th>Status</th>
             </tr>
           </thead>
@@ -1239,11 +1254,15 @@ export function StaffRepairServices() {
                   <input
                     className="inline-edit"
                     type="number"
-                    defaultValue={s.pricePesewas ?? ""}
-                    placeholder="Quote"
+                    min="0"
+                    step="0.01"
+                    defaultValue={s.pricePesewas != null ? (s.pricePesewas / 100).toFixed(2) : ""}
+                    key={`svc-price-${s.id}-${s.pricePesewas}`}
+                    placeholder="Set price"
                     onBlur={(e) => {
-                      const raw = e.target.value;
-                      const pricePesewas = raw === "" ? null : Number(raw);
+                      const raw = e.target.value.trim();
+                      const pricePesewas = raw === "" ? null : Math.round(Number(raw) * 100);
+                      if (raw !== "" && (!Number.isFinite(pricePesewas) || (pricePesewas ?? 0) < 0)) return;
                       if (pricePesewas === s.pricePesewas) return;
                       api(`/api/staff/repair-services/${s.id}`, {
                         method: "PATCH",
