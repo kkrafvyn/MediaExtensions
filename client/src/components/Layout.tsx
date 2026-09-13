@@ -6,7 +6,6 @@ import { ToastHost } from "./Toast";
 import { Footer } from "./Footer";
 import { CartDrawer } from "./CartDrawer";
 import { SearchModal } from "./SearchModal";
-import { BackgroundCarousel, APP_CAROUSEL } from "./BackgroundCarousel";
 import { IconClose, IconMenu } from "./Icons";
 
 export function Layout() {
@@ -52,15 +51,25 @@ export function Layout() {
   }, []);
 
   return (
-    <div className="shell shell-on-media">
-      <BackgroundCarousel slides={APP_CAROUSEL} fixed showDots={false} />
+    <div className="shell">
       <header className="nav">
         <div className="container nav-inner">
-          <Link to="/" className="brand-link">
-            Media Extensions
+          <Link to="/" className="brand-link" aria-label="Media Extensions Home">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="url(#brand-grad)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M2 17L12 22L22 17" stroke="url(#brand-grad)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M2 12L12 17L22 12" stroke="url(#brand-grad)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+              <defs>
+                <linearGradient id="brand-grad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#38bdf8"/>
+                  <stop offset="1" stopColor="#3b82f6"/>
+                </linearGradient>
+              </defs>
+            </svg>
+            <span className="brand-name">Media Extensions</span>
           </Link>
 
-          <nav className="nav-links">
+          <nav className="nav-links" aria-label="Primary Navigation">
             <NavLink to="/shop" className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}>
               Shop
             </NavLink>
@@ -87,18 +96,28 @@ export function Layout() {
             <button
               className="nav-search-btn hide-sm"
               onClick={() => setSearchModalOpen(true)}
-              aria-label="Search"
+              aria-label="Search store (Ctrl+K)"
               type="button"
             >
-              Search
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <span>Search</span>
+              <kbd className="nav-search-kbd">⌘K</kbd>
             </button>
             <button
               onClick={() => setCartDrawerOpen(true)}
               className="bag-pill"
-              aria-label="Shopping bag"
+              aria-label={`Shopping bag with ${cart?.itemCount || 0} items`}
               type="button"
             >
-              Bag
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <path d="M16 10a4 4 0 0 1-8 0"></path>
+              </svg>
+              <span>Bag</span>
               {Boolean(cart?.itemCount) && <span className="bag-count">{cart?.itemCount}</span>}
             </button>
             <button

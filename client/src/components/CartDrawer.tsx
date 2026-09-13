@@ -232,10 +232,11 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
             <div className="cart-drawer-footer">
               <div
                 style={{
-                  background: "var(--bg)",
+                  background: "rgba(255, 255, 255, 0.03)",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
                   padding: "0.65rem 0.85rem",
                   borderRadius: "var(--radius-sm)",
-                  fontSize: "0.78rem",
+                  fontSize: "0.8rem",
                   color: "var(--muted)",
                   display: "flex",
                   alignItems: "center",
@@ -245,13 +246,13 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                 <span className="inline-icon-label">
                   {cart.needsShipping ? (
                     <>
-                      <IconPackage size={14} />
-                      <span>Physical items included. Shipping calculated at checkout.</span>
+                      <IconPackage size={15} />
+                      <span>Shipping calculated at checkout. Accra pickup available.</span>
                     </>
                   ) : (
                     <>
-                      <IconBolt size={14} />
-                      <span>All digital downloads delivered via email & account vault after payment.</span>
+                      <IconBolt size={15} />
+                      <span>Instant download links sent immediately after payment.</span>
                     </>
                   )}
                 </span>
@@ -259,7 +260,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
 
               <div className="cart-drawer-total">
                 <span>Subtotal</span>
-                <span style={{ color: "var(--accent)" }}>
+                <span>
                   {formatGhs(cart.subtotalPesewas)}
                 </span>
               </div>
@@ -267,9 +268,9 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
               <button
                 className="btn btn-primary"
                 onClick={handleCheckout}
-                style={{ width: "100%", height: "3rem" }}
+                style={{ width: "100%", height: "2.85rem" }}
               >
-                Proceed to Checkout →
+                Checkout
               </button>
 
               <button
@@ -280,8 +281,14 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                 }}
                 style={{ width: "100%" }}
               >
-                View Full Bag Details
+                View bag
               </button>
+
+              <div className="payment-methods-strip">
+                <span className="payment-badge">MTN MoMo</span>
+                <span className="payment-badge">Telecel Cash</span>
+                <span className="payment-badge">Cards</span>
+              </div>
             </div>
           </>
         )}

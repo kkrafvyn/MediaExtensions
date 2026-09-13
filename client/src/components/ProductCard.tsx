@@ -80,31 +80,48 @@ export function ProductCard({ product, onQuickView, onOpenCart, style }: Product
         </div>
       </Link>
 
-      <div className="product-quick-actions">
-        {onQuickView && (
+        <div className="product-quick-actions">
+          {onQuickView && (
+            <button
+              className="product-quick-btn"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onQuickView(product);
+              }}
+              aria-label={`Quick view ${product.name}`}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: "0.3rem" }}>
+                <path d="M2 12s3-7 10-7 7 7 7 7-3 7-10 7-7-7-7-7Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              View
+            </button>
+          )}
           <button
-            className="product-quick-btn"
+            className="product-quick-btn product-quick-btn-primary"
             type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onQuickView(product);
-            }}
-            aria-label={`Quick view ${product.name}`}
+            disabled={adding || outOfStock}
+            onClick={handleQuickAdd}
+            aria-label={`Add ${product.name} to bag`}
           >
-            View
+            {adding ? (
+              <span className="inline-spinner" />
+            ) : outOfStock ? (
+              "Sold out"
+            ) : (
+              <>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: "0.3rem" }}>
+                  <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+                  <path d="M3 6h18" />
+                  <path d="M16 10a4 4 0 0 1-8 0" />
+                </svg>
+                Add
+              </>
+            )}
           </button>
-        )}
-        <button
-          className="product-quick-btn product-quick-btn-primary"
-          type="button"
-          disabled={adding || outOfStock}
-          onClick={handleQuickAdd}
-          aria-label={`Add ${product.name} to bag`}
-        >
-          {adding ? "…" : outOfStock ? "Sold out" : "Add"}
-        </button>
-      </div>
-    </article>
+        </div>
+      </article>
   );
 }

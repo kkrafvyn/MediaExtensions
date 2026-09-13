@@ -29,11 +29,11 @@ export function RepairsPage() {
       <header className="repairs-hero">
         <div className="container repairs-hero-inner">
           <p className="eyebrow page-eyebrow">
-            Certified GSM Hardware Studio · Accra
+            Media Extensions · Accra
           </p>
-          <h1>Precision device repair & diagnostics.</h1>
+          <h1>Device repairs and diagnostics</h1>
           <p className="lede">
-            From screen replacements and battery upgrades to water damage treatment, micro-soldering, and camera repairs. Book ahead online or drop into our Accra studio.
+            Screen replacements, battery upgrades, liquid damage treatment, and logic board repair. Book online or drop off at our studio.
           </p>
         </div>
       </header>
@@ -44,33 +44,33 @@ export function RepairsPage() {
       <div
         className="panel"
         style={{
-          background: "linear-gradient(135deg, #0d1713 0%, #16261f 100%)",
+          background: "rgba(18, 24, 38, 0.75)",
           color: "white",
-          padding: "2rem 2.25rem",
+          padding: "1.75rem 2rem",
           borderRadius: "var(--radius-lg)",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           flexWrap: "wrap",
-          gap: "1.5rem",
-          marginBottom: "3.5rem",
-          border: "1px solid rgba(255, 255, 255, 0.15)",
+          gap: "1.25rem",
+          marginBottom: "3rem",
+          border: "1px solid rgba(255, 255, 255, 0.1)",
         }}
       >
         <div>
-          <span className="badge badge-repair inline-icon-label" style={{ marginBottom: "0.5rem" }}>
-            <IconBolt size={12} /> Diagnostic Utility
+          <span className="badge badge-repair inline-icon-label" style={{ marginBottom: "0.4rem" }}>
+            <IconBolt size={12} /> IMEI Tool
           </span>
-          <h3 style={{ color: "white", fontSize: "1.35rem", margin: "0.25rem 0 0.4rem" }}>
-            Validate IMEI Format Before Booking
+          <h3 style={{ color: "white", fontSize: "1.25rem", margin: "0.2rem 0 0.35rem" }}>
+            Validate IMEI Format
           </h3>
-          <p style={{ color: "rgba(255, 255, 255, 0.75)", margin: 0, fontSize: "0.92rem", maxWidth: "540px" }}>
-            Run a quick Luhn checksum check on your 15-digit IMEI before you drop off a device or share it with our repair desk.
+          <p style={{ color: "var(--muted)", margin: 0, fontSize: "0.88rem", maxWidth: "520px" }}>
+            Verify your 15-digit IMEI checksum before dropping off your device or booking intake.
           </p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
           <Link to="/imei-check" className="btn btn-primary">
-            Run IMEI Check →
+            Check IMEI format
           </Link>
         </div>
       </div>
