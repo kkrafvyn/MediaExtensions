@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import type { User } from "../types";
 import { IconMail } from "../components/Icons";
+import { APP_CAROUSEL, BackgroundCarousel } from "../components/BackgroundCarousel";
 
 export function LoginPage() {
   const { refresh, setUser } = useAuth();
@@ -38,32 +39,30 @@ export function LoginPage() {
   }
 
   return (
-    <div className="page container" style={{ maxWidth: 460 }}>
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.75rem", background: "var(--bg-alt)", padding: "0.35rem", borderRadius: "var(--radius-full)" }}>
-        <Link
-          to="/login"
-          className="btn btn-sm"
-          style={{ flex: 1, background: "var(--surface)", color: "var(--ink)", borderRadius: "var(--radius-full)", boxShadow: "var(--shadow-xs)" }}
-        >
-          Sign In
-        </Link>
-        <Link
-          to="/register"
-          className="btn btn-sm"
-          style={{ flex: 1, color: "var(--muted)", borderRadius: "var(--radius-full)" }}
-        >
-          Create Account
-        </Link>
-      </div>
+    <div className="auth-shell">
+      <BackgroundCarousel slides={APP_CAROUSEL} fixed className="auth-carousel" />
+      <div className="page container auth-panel" style={{ maxWidth: 460 }}>
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.75rem", background: "var(--bg-alt)", padding: "0.35rem", borderRadius: "var(--radius-full)" }}>
+          <Link
+            to="/login"
+            className="btn btn-sm"
+            style={{ flex: 1, background: "var(--surface)", color: "var(--ink)", borderRadius: "var(--radius-full)", boxShadow: "var(--shadow-xs)" }}
+          >
+            Sign In
+          </Link>
+          <Link
+            to="/register"
+            className="btn btn-sm"
+            style={{ flex: 1, color: "var(--muted)", borderRadius: "var(--radius-full)" }}
+          >
+            Create Account
+          </Link>
+        </div>
 
-      <p className="eyebrow page-eyebrow">
-        <span className="pulse-dot" />
-        Account Access
-      </p>
-      <h1>Welcome back</h1>
-      <p className="lede">Sign in to manage downloads, active orders, and repair tickets.</p>
+        <h1>Welcome back</h1>
+        <p className="lede">Sign in to manage downloads, active orders, and repair tickets.</p>
 
-      <form className="panel stack" onSubmit={onSubmit}>
+        <form className="panel stack" onSubmit={onSubmit}>
         <label>
           Email Address
           <input
@@ -115,6 +114,7 @@ export function LoginPage() {
           </Link>
         </div>
       </form>
+      </div>
     </div>
   );
 }
@@ -150,32 +150,30 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="page container" style={{ maxWidth: 460 }}>
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.75rem", background: "var(--bg-alt)", padding: "0.35rem", borderRadius: "var(--radius-full)" }}>
-        <Link
-          to="/login"
-          className="btn btn-sm"
-          style={{ flex: 1, color: "var(--muted)", borderRadius: "var(--radius-full)" }}
-        >
-          Sign In
-        </Link>
-        <Link
-          to="/register"
-          className="btn btn-sm"
-          style={{ flex: 1, background: "var(--surface)", color: "var(--ink)", borderRadius: "var(--radius-full)", boxShadow: "var(--shadow-xs)" }}
-        >
-          Create Account
-        </Link>
-      </div>
+    <div className="auth-shell">
+      <BackgroundCarousel slides={APP_CAROUSEL} fixed className="auth-carousel" />
+      <div className="page container auth-panel" style={{ maxWidth: 460 }}>
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.75rem", background: "var(--bg-alt)", padding: "0.35rem", borderRadius: "var(--radius-full)" }}>
+          <Link
+            to="/login"
+            className="btn btn-sm"
+            style={{ flex: 1, color: "var(--muted)", borderRadius: "var(--radius-full)" }}
+          >
+            Sign In
+          </Link>
+          <Link
+            to="/register"
+            className="btn btn-sm"
+            style={{ flex: 1, background: "var(--surface)", color: "var(--ink)", borderRadius: "var(--radius-full)", boxShadow: "var(--shadow-xs)" }}
+          >
+            Create Account
+          </Link>
+        </div>
 
-      <p className="eyebrow page-eyebrow">
-        <span className="pulse-dot" />
-        Join Media Extensions
-      </p>
-      <h1>Create an account</h1>
-      <p className="lede">Unlock your digital downloads vault, repair tracking, and fast checkout.</p>
+        <h1>Create an account</h1>
+        <p className="lede">Unlock your digital downloads vault, repair tracking, and fast checkout.</p>
 
-      <form className="panel stack" onSubmit={onSubmit}>
+        <form className="panel stack" onSubmit={onSubmit}>
         <label>
           Full Name
           <input
@@ -238,6 +236,7 @@ export function RegisterPage() {
           {submitting ? "Creating Account…" : "Create Account →"}
         </button>
       </form>
+      </div>
     </div>
   );
 }
@@ -264,16 +263,14 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <div className="page container" style={{ maxWidth: 460 }}>
-      <p className="eyebrow page-eyebrow">
-        <span className="pulse-dot" />
-        Password Recovery
-      </p>
-      <h1>Reset password</h1>
-      <p className="lede">Enter your registered email address to receive password reset instructions.</p>
+    <div className="auth-shell">
+      <BackgroundCarousel slides={APP_CAROUSEL} fixed className="auth-carousel" />
+      <div className="page container auth-panel" style={{ maxWidth: 460 }}>
+        <h1>Reset password</h1>
+        <p className="lede">Enter your registered email address to receive password reset instructions.</p>
 
-      {submitted ? (
-        <div className="panel stack" style={{ textAlign: "center", padding: "2.5rem 1.5rem" }}>
+        {submitted ? (
+          <div className="panel stack" style={{ textAlign: "center", padding: "2.5rem 1.5rem" }}>
           <div className="empty-icon">
             <IconMail size={40} />
           </div>
@@ -281,34 +278,35 @@ export function ForgotPasswordPage() {
           <p style={{ color: "var(--muted)", fontSize: "0.92rem", lineHeight: 1.5 }}>
             If an account exists for <strong>{email}</strong>, we've dispatched password reset instructions.
           </p>
-          <Link to="/login" className="btn btn-dark" style={{ marginTop: "1rem" }}>
-            Return to Sign In
-          </Link>
-        </div>
-      ) : (
-        <form className="panel stack" onSubmit={onSubmit}>
-          <label>
-            Email Address
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@email.com"
-              required
-            />
-          </label>
-
-          <button className="btn btn-primary" type="submit" disabled={submitting} style={{ height: "3.2rem" }}>
-            {submitting ? "Sending Link…" : "Send Reset Link →"}
-          </button>
-
-          <div style={{ textAlign: "center", marginTop: "0.5rem" }}>
-            <Link to="/login" style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
-              ← Back to Sign In
+            <Link to="/login" className="btn btn-dark" style={{ marginTop: "1rem" }}>
+              Return to Sign In
             </Link>
           </div>
-        </form>
-      )}
+        ) : (
+          <form className="panel stack" onSubmit={onSubmit}>
+            <label>
+              Email Address
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@email.com"
+                required
+              />
+            </label>
+
+            <button className="btn btn-primary" type="submit" disabled={submitting} style={{ height: "3.2rem" }}>
+              {submitting ? "Sending Link…" : "Send Reset Link →"}
+            </button>
+
+            <div style={{ textAlign: "center", marginTop: "0.5rem" }}>
+              <Link to="/login" style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+                ← Back to Sign In
+              </Link>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   );
 }
@@ -339,33 +337,32 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <div className="page container" style={{ maxWidth: 460 }}>
-      <p className="eyebrow page-eyebrow">
-        <span className="pulse-dot" />
-        Create New Password
-      </p>
-      <h1>Set new password</h1>
-      <p className="lede">Choose a strong password with at least 6 characters.</p>
+    <div className="auth-shell">
+      <BackgroundCarousel slides={APP_CAROUSEL} fixed className="auth-carousel" />
+      <div className="page container auth-panel" style={{ maxWidth: 460 }}>
+        <h1>Set new password</h1>
+        <p className="lede">Choose a strong password with at least 6 characters.</p>
 
-      <form className="panel stack" onSubmit={onSubmit}>
-        <label>
-          New Password
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            required
-            minLength={6}
-          />
-        </label>
+        <form className="panel stack" onSubmit={onSubmit}>
+          <label>
+            New Password
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              minLength={6}
+            />
+          </label>
 
-        {error && <div className="alert-banner">{error}</div>}
+          {error && <div className="alert-banner">{error}</div>}
 
-        <button className="btn btn-primary" type="submit" disabled={submitting} style={{ height: "3.2rem" }}>
-          {submitting ? "Updating Password…" : "Update Password →"}
-        </button>
-      </form>
+          <button className="btn btn-primary" type="submit" disabled={submitting} style={{ height: "3.2rem" }}>
+            {submitting ? "Updating Password…" : "Update Password →"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
