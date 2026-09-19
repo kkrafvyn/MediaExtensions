@@ -40,6 +40,11 @@ export function StaffLayout() {
             <NavLink to="/staff/orders" className={({ isActive }) => `staff-nav-link ${isActive ? "active" : ""}`}>
               Orders
             </NavLink>
+            {user?.role === "admin" && (
+              <NavLink to="/staff/pos" className={({ isActive }) => `staff-nav-link ${isActive ? "active" : ""}`}>
+                In-store POS
+              </NavLink>
+            )}
             <NavLink to="/staff/repairs" className={({ isActive }) => `staff-nav-link ${isActive ? "active" : ""}`}>
               Repairs
             </NavLink>
@@ -80,6 +85,7 @@ export function StaffLayout() {
 }
 
 export function StaffDashboard() {
+  const { user } = useAuth();
   const [dash, setDash] = useState<{
     stats: { orders: number; repairs: number; products: number };
     recentOrders?: Array<{ id: string; name: string; status: string; totalPesewas: number; createdAt: string }>;
@@ -137,6 +143,7 @@ export function StaffDashboard() {
       </div>
 
       <div className="staff-quick-actions">
+        {user?.role === "admin" && <Link to="/staff/pos" className="btn btn-primary btn-sm">In-store POS</Link>}
         <Link to="/staff/orders" className="btn btn-primary btn-sm">Review orders</Link>
         <Link to="/staff/products" className="btn btn-light btn-sm">Edit catalog</Link>
         <Link to="/staff/settings" className="btn btn-light btn-sm">Store settings</Link>
@@ -234,6 +241,231 @@ export function StaffDashboard() {
         </div>
       )}
     </div>
+  );
+}
+
+export function StaffPos() {
+  const { user } = useAuth();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [search, setSearch] = useState("");
+  const [basket, setBasket] = useState<Record<string, number>>({});
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "momo" | "bank" | "paystack">("cash");
+  const [paymentReference, setPaymentReference] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [completedOrderId, setCompletedOrderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.role === "admin") {
+      api<{ products: Product[] }>("/api/staff/products").then((d) => setProducts(d.products.filter((p) => p.active !== false)));
+    }
+  }, [user?.role]);
+
+  if (user?.role !== "admin") return <Navigate to="/staff" replace />;
+
+  const visibleProducts = products.filter((product) =>
+    product.name.toLowerCase().includes(search.trim().toLowerCase()),
+  );
+  const lines = products
+    .filter((product) => basket[product.id])
+    .map((product) => ({ product, quantity: basket[product.id] }));
+  const totalPesewas = lines.reduce((sum, line) => sum + line.product.pricePesewas * line.quantity, 0);
+
+  function setQuantity(productId: string, quantity: number) {
+    setBasket((current) => {
+      const next = { ...current };
+      if (quantity <= 0) delete next[productId];
+      else next[productId] = quantity;
+      return next;
+    });
+  }
+
+  async function completeSale(e: FormEvent) {
+    e.preventDefault();
+    if (!lines.length) {
+      setError("Add at least one product to this sale.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const result = await api<{ order: { id: string } }>("/api/staff/pos/orders", {
+        method: "POST",
+        body: JSON.stringify({
+          items: lines.map((line) => ({ productId: line.product.id, quantity: line.quantity })),
+          customerName: customerName || undefined,
+          customerPhone: customerPhone || undefined,
+          customerEmail: customerEmail || undefined,
+          paymentMethod,
+          paymentReference: paymentReference || undefined,
+        }),
+      });
+      setCompletedOrderId(result.order.id);
+      setBasket({});
+      setCustomerName("");
+      setCustomerPhone("");
+      setCustomerEmail("");
+      setPaymentReference("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not complete this sale");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+    <form className="stack" onSubmit={completeSale}>
+      <div className="panel stack">
+        <div className="panel-header" style={{ marginBottom: 0 }}>
+          <div>
+            <p className="eyebrow" style={{ marginBottom: "0.25rem" }}>In-store checkout</p>
+            <h2 style={{ margin: 0, fontSize: "1.3rem" }}>Counter sale / POS</h2>
+          </div>
+          <span className="badge badge-digital">Admin only</span>
+        </div>
+        <p className="meta">Select items, receive payment, and print a receipt. Stock is deducted immediately after the sale is recorded.</p>
+      </div>
+
+      {completedOrderId && (
+        <div className="alert-banner" style={{ borderColor: "rgba(16, 185, 129, 0.5)" }}>
+          Sale recorded successfully. <Link to={`/order/${completedOrderId}/receipt`} target="_blank">Open printable receipt</Link>
+        </div>
+      )}
+      {error && <div className="alert-banner">{error}</div>}
+
+      <div className="split split-2">
+        <section className="panel stack">
+          <label>
+            Find a product
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by product name" autoFocus />
+          </label>
+          <div className="stack" style={{ maxHeight: "30rem", overflowY: "auto", gap: "0.5rem" }}>
+            {visibleProducts.map((product) => {
+              const quantity = basket[product.id] ?? 0;
+              return (
+                <div className="line-item" key={product.id}>
+                  <div>
+                    <strong>{product.name}</strong>
+                    <div className="meta">{formatGhs(product.pricePesewas)} · {product.fulfillment === "digital" ? "Digital" : `${product.stock} in stock`}</div>
+                  </div>
+                  <button className="btn btn-light btn-sm" type="button" onClick={() => setQuantity(product.id, quantity + 1)}>
+                    {quantity ? `Add another (${quantity})` : "Add"}
+                  </button>
+                </div>
+              );
+            })}
+            {!visibleProducts.length && <p className="meta">No matching products.</p>}
+          </div>
+        </section>
+
+        <aside className="panel stack">
+          <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Current sale</h2>
+          {!lines.length ? <p className="meta">No items added yet.</p> : lines.map(({ product, quantity }) => (
+            <div className="line-item" key={product.id}>
+              <div>
+                <strong>{product.name}</strong>
+                <div className="meta">{formatGhs(product.pricePesewas)} each</div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                <button className="btn btn-light btn-sm" type="button" onClick={() => setQuantity(product.id, quantity - 1)}>−</button>
+                <strong>{quantity}</strong>
+                <button className="btn btn-light btn-sm" type="button" onClick={() => setQuantity(product.id, quantity + 1)}>+</button>
+              </div>
+            </div>
+          ))}
+          <div className="line-item" style={{ borderTop: "1px solid var(--line)", paddingTop: "0.8rem" }}>
+            <strong>Total</strong><strong style={{ color: "var(--accent)", fontSize: "1.3rem" }}>{formatGhs(totalPesewas)}</strong>
+          </div>
+
+          <label>Customer name <span className="meta">(optional)</span><input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Walk-in customer" /></label>
+          <label>Phone <span className="meta">(optional)</span><input inputMode="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Customer phone" /></label>
+          <label>Email <span className="meta">(only needed for digital items)</span><input type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder="customer@email.com" /></label>
+          <label>Payment received
+            <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}>
+              <option value="cash">Cash</option><option value="momo">Mobile Money</option><option value="bank">Bank transfer</option><option value="paystack">Paystack card / terminal</option>
+            </select>
+          </label>
+          <label>Reference <span className="meta">(optional)</span><input value={paymentReference} onChange={(e) => setPaymentReference(e.target.value)} placeholder="MoMo, bank, or terminal reference" /></label>
+          <button className="btn btn-primary" type="submit" disabled={saving || !lines.length} style={{ minHeight: "3rem" }}>
+            {saving ? "Recording sale…" : `Take ${formatGhs(totalPesewas)} & print receipt`}
+          </button>
+        </aside>
+      </div>
+    </form>
+    <StaffPosRepair />
+    </>
+  );
+}
+
+function StaffPosRepair() {
+  const [services, setServices] = useState<Array<{ id: string; name: string; pricePesewas: number | null }>>([]);
+  const [form, setForm] = useState({
+    name: "", phone: "", email: "", deviceBrand: "", deviceModel: "", issue: "", serviceId: "",
+    quoteGhs: "", paymentMethod: "cash", paymentStatus: "unpaid", staffNotes: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [repairId, setRepairId] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<{ services: typeof services }>("/api/staff/repair-services").then((d) => setServices(d.services));
+  }, []);
+
+  function chooseService(serviceId: string) {
+    const service = services.find((item) => item.id === serviceId);
+    setForm({ ...form, serviceId, quoteGhs: service?.pricePesewas != null ? (service.pricePesewas / 100).toFixed(2) : form.quoteGhs });
+  }
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const quotePesewas = form.quoteGhs.trim() === "" ? null : Math.round(Number(form.quoteGhs) * 100);
+    if (quotePesewas != null && (!Number.isFinite(quotePesewas) || quotePesewas < 0)) {
+      setError("Enter a valid quoted price.");
+      return;
+    }
+    setSaving(true); setError("");
+    try {
+      const result = await api<{ repair: { id: string } }>("/api/staff/pos/repairs", {
+        method: "POST",
+        body: JSON.stringify({ ...form, serviceId: form.serviceId || null, quotePesewas }),
+      });
+      setRepairId(result.repair.id);
+      setForm({ name: "", phone: "", email: "", deviceBrand: "", deviceModel: "", issue: "", serviceId: "", quoteGhs: "", paymentMethod: "cash", paymentStatus: "unpaid", staffNotes: "" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not record this GSM intake");
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <form className="panel stack" onSubmit={submit} style={{ marginTop: "1.5rem" }}>
+      <div className="panel-header" style={{ marginBottom: 0 }}>
+        <div><p className="eyebrow" style={{ marginBottom: "0.25rem" }}>GSM walk-in intake</p><h2 style={{ margin: 0, fontSize: "1.3rem" }}>Record an in-store repair</h2></div>
+        <span className="badge badge-repair">POS</span>
+      </div>
+      <p className="meta">Use this for customers who bring a phone or device to the shop. Set the quote only after you have agreed it with the customer.</p>
+      {repairId && <div className="alert-banner" style={{ borderColor: "rgba(16, 185, 129, 0.5)" }}>GSM ticket recorded. <Link target="_blank" to={`/repairs/status/${repairId}/receipt`}>Open printable intake receipt</Link></div>}
+      {error && <div className="alert-banner">{error}</div>}
+      <div className="form-grid two">
+        <label>Customer name<input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+        <label>Customer phone<input required inputMode="tel" minLength={8} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
+        <label>Email <span className="meta">(optional)</span><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
+        <label>Repair service<select value={form.serviceId} onChange={(e) => chooseService(e.target.value)}><option value="">General diagnosis</option>{services.map((service) => <option value={service.id} key={service.id}>{service.name}{service.pricePesewas != null ? ` (${formatGhs(service.pricePesewas)})` : ""}</option>)}</select></label>
+        <label>Device brand<input required value={form.deviceBrand} onChange={(e) => setForm({ ...form, deviceBrand: e.target.value })} placeholder="e.g. Apple or Samsung" /></label>
+        <label>Device model<input required value={form.deviceModel} onChange={(e) => setForm({ ...form, deviceModel: e.target.value })} placeholder="e.g. iPhone 13" /></label>
+      </div>
+      <label>Fault / issue<textarea required minLength={4} rows={3} value={form.issue} onChange={(e) => setForm({ ...form, issue: e.target.value })} placeholder="Describe the fault and visible condition" /></label>
+      <div className="form-grid two">
+        <label>Approved quote (GHS) <span className="meta">(leave blank until diagnosed)</span><input type="number" min="0" step="0.01" value={form.quoteGhs} onChange={(e) => setForm({ ...form, quoteGhs: e.target.value })} placeholder="0.00" /></label>
+        <label>Payment received<select value={form.paymentStatus} onChange={(e) => setForm({ ...form, paymentStatus: e.target.value })}><option value="unpaid">Not paid yet</option><option value="paid">Paid at counter</option></select></label>
+        <label>Payment method<select value={form.paymentMethod} onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}><option value="cash">Cash</option><option value="momo">Mobile Money</option><option value="bank">Bank transfer</option><option value="paystack">Paystack card / terminal</option></select></label>
+        <label>Staff notes <span className="meta">(optional)</span><input value={form.staffNotes} onChange={(e) => setForm({ ...form, staffNotes: e.target.value })} placeholder="Accessories received, customer instruction, etc." /></label>
+      </div>
+      <button className="btn btn-primary" type="submit" disabled={saving}>{saving ? "Recording intake…" : "Create GSM repair ticket"}</button>
+    </form>
   );
 }
 
@@ -519,6 +751,8 @@ async function uploadDigitalAsset(file: File): Promise<string> {
 }
 
 export function StaffProducts() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
@@ -630,6 +864,7 @@ export function StaffProducts() {
 
   return (
     <div className="stack">
+      {!isAdmin && <div className="alert-banner">Only an admin can add products or set their prices. You can still update stock and product files.</div>}
       <form className="panel stack" onSubmit={create}>
         <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Add product</h2>
         <div className="form-grid two">
@@ -724,7 +959,7 @@ export function StaffProducts() {
             )}
           </label>
         )}
-        <button className="btn btn-primary" type="submit">
+        <button className="btn btn-primary" type="submit" disabled={!isAdmin}>
           Create
         </button>
       </form>
@@ -762,6 +997,7 @@ export function StaffProducts() {
                     type="number"
                     min="0.01"
                     step="0.01"
+                    disabled={!isAdmin}
                     defaultValue={(p.pricePesewas / 100).toFixed(2)}
                     key={`price-${p.id}-${p.pricePesewas}`}
                     onBlur={(e) => {
@@ -857,6 +1093,8 @@ export function StaffProducts() {
 }
 
 export function StaffRepairs() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [repairs, setRepairs] = useState<
     Array<{
       id: string;
@@ -901,7 +1139,7 @@ export function StaffRepairs() {
       paymentStatus: draft.paymentStatus,
       staffNotes: draft.notes,
     };
-    if (draft.quoteGhs.trim() !== "") {
+    if (isAdmin && draft.quoteGhs.trim() !== "") {
       body.quotePesewas = Math.round(Number(draft.quoteGhs) * 100);
     }
     await api(`/api/staff/repairs/${id}`, { method: "PATCH", body: JSON.stringify(body) });
@@ -969,6 +1207,7 @@ export function StaffRepairs() {
                           type="number"
                           min="0"
                           step="0.01"
+                          disabled={!isAdmin}
                           value={draft.quoteGhs}
                           onChange={(e) => setDraft({ ...draft, quoteGhs: e.target.value })}
                           placeholder="0.00"
@@ -1150,6 +1389,8 @@ export function StaffUsers() {
 }
 
 export function StaffRepairServices() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [services, setServices] = useState<
     Array<{
       id: string;
@@ -1195,6 +1436,7 @@ export function StaffRepairServices() {
 
   return (
     <div className="stack">
+      {!isAdmin && <div className="alert-banner">Only an admin can add repair services or change their prices.</div>}
       <form className="panel stack" onSubmit={create}>
         <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Add repair service</h2>
         <p className="meta" style={{ margin: 0 }}>
@@ -1229,7 +1471,7 @@ export function StaffRepairServices() {
             required
           />
         </label>
-        <button className="btn btn-primary" type="submit">
+        <button className="btn btn-primary" type="submit" disabled={!isAdmin}>
           Create service
         </button>
       </form>
@@ -1256,6 +1498,7 @@ export function StaffRepairServices() {
                     type="number"
                     min="0"
                     step="0.01"
+                    disabled={!isAdmin}
                     defaultValue={s.pricePesewas != null ? (s.pricePesewas / 100).toFixed(2) : ""}
                     key={`svc-price-${s.id}-${s.pricePesewas}`}
                     placeholder="Set price"

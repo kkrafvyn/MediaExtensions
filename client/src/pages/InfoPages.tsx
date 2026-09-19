@@ -349,7 +349,7 @@ export function PickupPage() {
   return (
     <InfoPage
       title="Pickup & location"
-      lede="Collect physical orders and drop off devices for GSM repair in Accra."
+      lede="Collect physical orders and drop off devices for GSM repair at Kumasi Station, Koforidua."
     >
       <InfoSection title="Location">
         <p>
@@ -374,8 +374,7 @@ export function PickupPage() {
       </InfoSection>
       <InfoSection title="How pickup works">
         <p>
-          Choose <strong>Pay on pickup / cash</strong> at checkout, or pay via MoMo/bank/Paystack
-          first and arrange collection. Bring a valid ID matching the order name when collecting
+          Pay securely through <strong>Paystack</strong> at checkout, then arrange collection. Bring a valid ID matching the order name when collecting
           high-value gear.
         </p>
       </InfoSection>

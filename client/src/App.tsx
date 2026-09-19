@@ -41,6 +41,7 @@ import {
   StaffUsers,
   StaffMessages,
   StaffSettings,
+  StaffPos,
 } from "./pages/StaffPages";
 
 export default function App() {
@@ -80,6 +81,7 @@ export default function App() {
             <Route path="staff" element={<StaffLayout />}>
               <Route index element={<StaffDashboard />} />
               <Route path="orders" element={<StaffOrders />} />
+              <Route path="pos" element={<StaffPos />} />
               <Route path="products" element={<StaffProducts />} />
               <Route path="repairs" element={<StaffRepairs />} />
               <Route path="services" element={<StaffRepairServices />} />

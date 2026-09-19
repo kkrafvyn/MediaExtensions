@@ -28,8 +28,7 @@ const checkoutSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1),
   phone: z.string().min(8),
-  paymentMethod: z.enum(["momo", "bank", "pickup", "paystack"]),
-  paymentNote: z.string().max(160).optional(),
+  paymentMethod: z.literal("paystack"),
   shipping: shippingSchema.optional(),
 });
 
@@ -53,22 +52,17 @@ router.post("/", async (req: AuthedRequest, res) => {
     return res.status(400).json({ error: "Cart is empty" });
   }
 
-  if (cart.needsShipping && !parsed.data.shipping && parsed.data.paymentMethod !== "pickup") {
+  if (cart.needsShipping && !parsed.data.shipping) {
     return res.status(400).json({ error: "Shipping address required for delivery" });
   }
 
-  if (cart.needsShipping && parsed.data.paymentMethod === "pickup" && !parsed.data.phone) {
-    return res.status(400).json({ error: "Phone required for pickup orders" });
-  }
-
   const shippingPesewas =
-    cart.needsShipping && parsed.data.paymentMethod !== "pickup" && parsed.data.shipping
+    cart.needsShipping && parsed.data.shipping
       ? shippingPesewasForRegion(parsed.data.shipping.region)
       : 0;
 
   const totalPesewas = cart.subtotalPesewas + shippingPesewas;
-  const status =
-    parsed.data.paymentMethod === "pickup" ? "awaiting_pickup" : "pending_payment";
+  const status = "pending_payment";
 
   const paystackReference =
     parsed.data.paymentMethod === "paystack" ? `me_${nanoid(16)}` : null;
@@ -129,10 +123,7 @@ router.post("/", async (req: AuthedRequest, res) => {
       totalPesewas,
       currency: "GHS",
       shipping:
-        cart.needsShipping && parsed.data.paymentMethod !== "pickup"
-          ? parsed.data.shipping ?? null
-          : null,
-      paymentNote: parsed.data.paymentNote,
+        cart.needsShipping ? parsed.data.shipping ?? null : null,
       paystackReference,
     })
     .returning();

@@ -94,8 +94,8 @@ export function HomePage() {
                 <IconPin size={20} />
               </div>
               <div className="trust-content">
-                <strong>Accra Studio & Delivery</strong>
-                <p>Drop off at our Accra studio or request tracked motorcycle dispatch across Greater Accra.</p>
+                <strong>Koforidua Pickup & Delivery</strong>
+                <p>Visit us at Kumasi Station, Koforidua, or arrange delivery across Ghana.</p>
               </div>
             </div>
           </div>
@@ -198,7 +198,7 @@ export function HomePage() {
         <div className="container">
           <div className="section-head" style={{ textAlign: "center", alignItems: "center" }}>
             <p className="eyebrow">Service Center</p>
-            <h2>Device repairs in Accra</h2>
+            <h2>Device repairs in Koforidua</h2>
             <p style={{ color: "var(--muted)", maxWidth: "34rem" }}>
               Drop off at our studio or book online to track diagnostic and repair progress.
             </p>
@@ -221,7 +221,7 @@ export function HomePage() {
             <div className="repair-step-card">
               <div className="repair-step-num">03</div>
               <h4>Studio Intake</h4>
-              <p>Bring it to our Accra studio or arrange motorcycle courier dispatch.</p>
+              <p>Bring it to our Kumasi Station shop or arrange courier delivery.</p>
             </div>
 
             <div className="repair-step-card">

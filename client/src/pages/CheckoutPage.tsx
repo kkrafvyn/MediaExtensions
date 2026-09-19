@@ -39,7 +39,7 @@ export function CheckoutPage() {
   const [name, setName] = useState(user?.name ?? "");
   const [phone, setPhone] = useState(user?.phone ?? "+233 ");
   const [paymentNote, setPaymentNote] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("momo");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("paystack");
   const [shipping, setShipping] = useState({
     fullName: user?.name ?? "",
     phone: user?.phone ?? "+233 ",
@@ -147,10 +147,9 @@ export function CheckoutPage() {
         email,
         name,
         phone,
-        paymentMethod,
-        paymentNote: paymentNote || undefined,
+        paymentMethod: "paystack",
       };
-      if (cart?.needsShipping && paymentMethod !== "pickup") {
+      if (cart?.needsShipping) {
         body.shipping = shipping;
       }
       const res = await api<{ order: { id: string }; authorizationUrl?: string }>("/api/checkout", {
@@ -305,8 +304,12 @@ export function CheckoutPage() {
               <h2 style={{ fontSize: "1.2rem", margin: 0 }}>Select Payment Method</h2>
             </div>
 
+            {!meta?.paystackEnabled && (
+              <div className="alert-banner">Secure checkout is being set up. Please try again shortly.</div>
+            )}
+
             <div className="stack" style={{ gap: "0.75rem" }}>
-              {methods.map((method) => (
+              {methods.filter((method) => method.value === "paystack").map((method) => (
                 <label
                   key={method.value}
                   className={`pay-option ${paymentMethod === method.value ? "selected" : ""}`}
@@ -442,7 +445,7 @@ export function CheckoutPage() {
 
           <button
             className="btn btn-primary checkout-submit"
-            disabled={submitting}
+            disabled={submitting || !meta?.paystackEnabled}
             type="submit"
             style={{ height: "3.2rem", fontSize: "1.05rem" }}
           >

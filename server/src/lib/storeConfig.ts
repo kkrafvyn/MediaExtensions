@@ -56,8 +56,8 @@ function envDefaults(): StoreConfig {
       accountName: process.env.BANK_ACCOUNT_NAME ?? "Media Extensions",
     },
     pickup: {
-      name: process.env.PICKUP_NAME ?? "Media Extensions Store",
-      address: process.env.PICKUP_ADDRESS ?? "",
+      name: process.env.PICKUP_NAME ?? "Media Extensions — Kumasi Station",
+      address: process.env.PICKUP_ADDRESS ?? "Kumasi Station, Koforidua",
       landmark: process.env.PICKUP_LANDMARK ?? "",
       hours: process.env.PICKUP_HOURS ?? "",
       mapUrl: process.env.PICKUP_MAP_URL ?? "",

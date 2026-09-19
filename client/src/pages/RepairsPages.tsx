@@ -198,7 +198,7 @@ export function RepairBookPage() {
       </p>
       <h1>Book a device repair</h1>
       <p className="lede">
-        Drop off at our Accra hub or arrange courier delivery. Settle online or upon pickup.
+        Book your device in a few simple steps. Our admin will inspect it and confirm the final price before any work begins.
       </p>
 
       <form className="panel stack" onSubmit={onSubmit}>
@@ -321,7 +321,7 @@ export function RepairBookPage() {
             rows={2}
             value={dropOffNotes}
             onChange={(e) => setDropOffNotes(e.target.value)}
-            placeholder="e.g. Will drop off at Accra hub tomorrow morning at 10 AM"
+            placeholder="e.g. I will drop off at Kumasi Station tomorrow morning"
           />
         </label>
 
@@ -476,7 +476,7 @@ export function RepairStatusPage() {
         >
           <div>
             <strong style={{ color: "var(--emerald)", display: "block" }}>Need quick assistance?</strong>
-            <span style={{ fontSize: "0.85rem", color: "var(--ink)" }}>Chat directly with our Accra hardware technician on WhatsApp.</span>
+            <span style={{ fontSize: "0.85rem", color: "var(--ink)" }}>Contact our technician if you need help with your repair ticket.</span>
           </div>
           <a
             href={`https://wa.me/233240000000?text=${waText}`}

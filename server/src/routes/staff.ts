@@ -15,9 +15,10 @@ import {
   users,
 } from "../db/schema.js";
 import { requireRoles, type AuthedRequest } from "../middleware/auth.js";
-import { cancelOrder, fulfillOrder, markOrderPaid } from "../services/orders.js";
+import { cancelOrder, fulfillOrder, markOrderPaid, reserveStockForOrder } from "../services/orders.js";
 import { putObject, safeStorageFilename } from "../lib/storage.js";
 import { ensureStoreConfig, saveStoreConfig, type StoreConfig } from "../lib/storeConfig.js";
+import { availableStock } from "../lib/inventory.js";
 import { slugify } from "../lib/utils.js";
 
 const router = Router();
@@ -321,7 +322,127 @@ router.get("/products", async (_req, res) => {
   res.json({ products: rows });
 });
 
-router.post("/products", async (req, res) => {
+/**
+ * Counter sale for stock handed over in the shop. Payment is recorded in the
+ * ledger before the order is marked paid, which also finalizes inventory.
+ */
+router.post("/pos/orders", requireRoles("admin"), async (req: AuthedRequest, res) => {
+  const schema = z.object({
+    items: z.array(z.object({ productId: z.string().uuid(), quantity: z.number().int().min(1).max(99) })).min(1),
+    customerName: z.string().max(120).optional(),
+    customerPhone: z.string().max(40).optional(),
+    customerEmail: z.string().email().optional(),
+    paymentMethod: z.enum(["cash", "momo", "bank", "paystack"]),
+    paymentReference: z.string().max(160).optional(),
+    notes: z.string().max(500).optional(),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Enter at least one valid item" });
+
+  const quantities = new Map<string, number>();
+  for (const line of parsed.data.items) {
+    quantities.set(line.productId, (quantities.get(line.productId) ?? 0) + line.quantity);
+  }
+  const selected = await db.query.products.findMany({
+    where: inArray(products.id, [...quantities.keys()]),
+  });
+  if (selected.length !== quantities.size || selected.some((product) => !product.active)) {
+    return res.status(409).json({ error: "One or more selected products are unavailable" });
+  }
+  if (selected.some((product) => product.fulfillment !== "digital" && availableStock(product) < (quantities.get(product.id) ?? 0))) {
+    return res.status(409).json({ error: "One or more items no longer have enough stock" });
+  }
+
+  const totalPesewas = selected.reduce(
+    (sum, product) => sum + product.pricePesewas * (quantities.get(product.id) ?? 0),
+    0,
+  );
+  const customerName = parsed.data.customerName?.trim() || "Walk-in customer";
+  const customerEmail = parsed.data.customerEmail?.trim().toLowerCase() || "walk-in@mediaextensions.local";
+  const [order] = await db.insert(orders).values({
+    email: customerEmail,
+    name: customerName,
+    phone: parsed.data.customerPhone?.trim() || null,
+    status: "pending_payment",
+    paymentMethod: parsed.data.paymentMethod,
+    subtotalPesewas: totalPesewas,
+    totalPesewas,
+    currency: "GHS",
+    paymentNote: parsed.data.notes?.trim() || null,
+  }).returning();
+
+  await db.insert(orderItems).values(selected.map((product) => ({
+    orderId: order.id,
+    productId: product.id,
+    name: product.name,
+    slug: product.slug,
+    quantity: quantities.get(product.id) ?? 0,
+    unitPricePesewas: product.pricePesewas,
+    fulfillment: product.fulfillment,
+    digitalAssetPath: product.digitalAssetPath,
+  })));
+
+  try {
+    await reserveStockForOrder(order.id);
+    await db.insert(paymentRecords).values({
+      orderId: order.id,
+      method: parsed.data.paymentMethod,
+      amountPesewas: totalPesewas,
+      reference: parsed.data.paymentReference?.trim() || null,
+      notes: parsed.data.notes?.trim() || "In-store POS sale",
+      recordedByUserId: req.user!.id,
+    });
+    const paid = await markOrderPaid(order.id);
+    return res.status(201).json({ order: paid });
+  } catch (err) {
+    await db.delete(orderItems).where(eq(orderItems.orderId, order.id));
+    await db.delete(orders).where(eq(orders.id, order.id));
+    return res.status(409).json({ error: err instanceof Error ? err.message : "Could not complete counter sale" });
+  }
+});
+
+/** Create a walk-in GSM ticket without making the customer use the website. */
+router.post("/pos/repairs", requireRoles("admin"), async (_req: AuthedRequest, res) => {
+  const schema = z.object({
+    name: z.string().min(1).max(120),
+    phone: z.string().min(8).max(40),
+    email: z.string().email().optional(),
+    deviceBrand: z.string().min(1).max(100),
+    deviceModel: z.string().min(1).max(120),
+    issue: z.string().min(4).max(2000),
+    serviceId: z.string().uuid().nullable().optional(),
+    quotePesewas: z.number().int().min(0).nullable().optional(),
+    paymentMethod: z.enum(["cash", "momo", "bank", "paystack"]),
+    paymentStatus: z.enum(["unpaid", "paid"]),
+    staffNotes: z.string().max(2000).optional(),
+  });
+  const parsed = schema.safeParse(_req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Enter the customer's device and repair details" });
+
+  let service = null;
+  if (parsed.data.serviceId) {
+    service = await db.query.repairServices.findFirst({ where: eq(repairServices.id, parsed.data.serviceId) });
+    if (!service || !service.active) return res.status(400).json({ error: "Selected repair service is unavailable" });
+  }
+  const quotePesewas = parsed.data.quotePesewas ?? service?.pricePesewas ?? null;
+  const [repair] = await db.insert(repairOrders).values({
+    name: parsed.data.name.trim(),
+    phone: parsed.data.phone.trim(),
+    email: parsed.data.email?.trim().toLowerCase() || "walk-in@mediaextensions.local",
+    deviceBrand: parsed.data.deviceBrand.trim(),
+    deviceModel: parsed.data.deviceModel.trim(),
+    issue: parsed.data.issue.trim(),
+    serviceId: parsed.data.serviceId ?? null,
+    quotePesewas,
+    paymentMethod: parsed.data.paymentMethod,
+    paymentStatus: parsed.data.paymentStatus,
+    status: quotePesewas != null ? "quoted" : "submitted",
+    staffNotes: parsed.data.staffNotes?.trim() || "Walk-in POS intake",
+  }).returning();
+  res.status(201).json({ repair });
+});
+
+router.post("/products", requireRoles("admin"), async (req, res) => {
   const schema = z.object({
     name: z.string().min(1),
     description: z.string().min(1),
@@ -350,7 +471,7 @@ router.post("/products", async (req, res) => {
   res.status(201).json({ product: row });
 });
 
-router.patch("/products/:id", async (req, res) => {
+router.patch("/products/:id", async (req: AuthedRequest, res) => {
   const schema = z.object({
     name: z.string().min(1).optional(),
     description: z.string().min(1).optional(),
@@ -366,6 +487,9 @@ router.patch("/products/:id", async (req, res) => {
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid product update" });
+  }
+  if (parsed.data.pricePesewas != null && req.user?.role !== "admin") {
+    return res.status(403).json({ error: "Only an admin can change prices" });
   }
 
   const [row] = await db
@@ -385,7 +509,7 @@ router.get("/repairs", async (_req, res) => {
   res.json({ repairs: rows });
 });
 
-router.patch("/repairs/:id", async (req, res) => {
+router.patch("/repairs/:id", async (req: AuthedRequest, res) => {
   const schema = z.object({
     status: z
       .enum([
@@ -401,11 +525,14 @@ router.patch("/repairs/:id", async (req, res) => {
     quotePesewas: z.number().int().min(0).nullable().optional(),
     staffNotes: z.string().optional(),
     paymentStatus: z.enum(["unpaid", "paid"]).optional(),
-    paymentMethod: z.enum(["momo", "bank", "pickup", "paystack"]).nullable().optional(),
+    paymentMethod: z.enum(["cash", "momo", "bank", "pickup", "paystack"]).nullable().optional(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid update" });
+  }
+  if (parsed.data.quotePesewas !== undefined && req.user?.role !== "admin") {
+    return res.status(403).json({ error: "Only an admin can set repair quotes" });
   }
 
   const [row] = await db
@@ -422,7 +549,7 @@ router.get("/repair-services", async (_req, res) => {
   res.json({ services: rows });
 });
 
-router.post("/repair-services", async (req, res) => {
+router.post("/repair-services", requireRoles("admin"), async (req, res) => {
   const schema = z.object({
     name: z.string().min(1),
     description: z.string().min(1),
@@ -442,7 +569,7 @@ router.post("/repair-services", async (req, res) => {
   res.status(201).json({ service: row });
 });
 
-router.patch("/repair-services/:id", async (req, res) => {
+router.patch("/repair-services/:id", async (req: AuthedRequest, res) => {
   const schema = z.object({
     name: z.string().min(1).optional(),
     description: z.string().min(1).optional(),
@@ -451,6 +578,9 @@ router.patch("/repair-services/:id", async (req, res) => {
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid update" });
+  if (parsed.data.pricePesewas !== undefined && req.user?.role !== "admin") {
+    return res.status(403).json({ error: "Only an admin can change service prices" });
+  }
 
   const [row] = await db
     .update(repairServices)
