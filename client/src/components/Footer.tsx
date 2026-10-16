@@ -1,20 +1,17 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
+import { useSiteMeta } from "../context/SiteMetaContext";
+import { whatsappUrl } from "../lib/whatsapp";
 import { toast } from "./Toast";
-import type { SiteMeta } from "../types";
+import { BrandLogo } from "./BrandLogo";
 
 export function Footer() {
   const year = new Date().getFullYear();
-  const [meta, setMeta] = useState<SiteMeta | null>(null);
+  const { meta } = useSiteMeta();
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [subscribing, setSubscribing] = useState(false);
-
-  useEffect(() => {
-    api<SiteMeta>("/api/meta")
-      .then(setMeta)
-      .catch(() => undefined);
-  }, []);
+  const waLink = whatsappUrl(meta?.storeWhatsApp ?? meta?.store?.whatsapp);
 
   async function onSubscribe(e: React.FormEvent) {
     e.preventDefault();
@@ -38,24 +35,32 @@ export function Footer() {
     <footer className="footer">
       <div className="container footer-grid">
         <div className="footer-brand">
-          <Link to="/" className="brand-link">
-            Media Extensions
+          <Link to="/" className="brand-link" style={{ marginBottom: "0.5rem", display: "inline-flex" }}>
+            <BrandLogo size="md" />
           </Link>
           <p>Digital tools, camera gear, and GSM repairs for creators in Ghana.</p>
-          {(meta?.storePhone || meta?.storeEmail) && (
+          {(meta?.storePhone || meta?.storeEmail || waLink) && (
             <p className="meta" style={{ marginTop: "0.75rem" }}>
-              {meta.storePhone && <span>{meta.storePhone}</span>}
-              {meta.storePhone && meta.storeEmail && " · "}
-              {meta.storeEmail && <span>{meta.storeEmail}</span>}
+              {meta?.storePhone && <span>{meta.storePhone}</span>}
+              {meta?.storePhone && (meta?.storeEmail || waLink) && " · "}
+              {waLink && (
+                <a href={waLink} target="_blank" rel="noopener noreferrer">
+                  WhatsApp
+                </a>
+              )}
+              {waLink && meta?.storeEmail && " · "}
+              {meta?.storeEmail && <span>{meta.storeEmail}</span>}
             </p>
           )}
           <form onSubmit={onSubscribe} style={{ marginTop: "1.25rem", maxWidth: "20rem" }}>
-            <label className="meta" style={{ marginBottom: "0.35rem" }}>
-              Updates
+            <label htmlFor="newsletter-email" className="meta" style={{ marginBottom: "0.35rem" }}>
+              Product and store updates
             </label>
             <div style={{ display: "flex", gap: "0.5rem" }}>
               <input
+                id="newsletter-email"
                 type="email"
+                autoComplete="email"
                 placeholder="Email"
                 value={newsletterEmail}
                 onChange={(e) => setNewsletterEmail(e.target.value)}
@@ -101,8 +106,7 @@ export function Footer() {
       </div>
 
       <div className="container footer-bottom">
-        <span>© {year} Media Extensions · Accra, Ghana</span>
-        <span className="meta">MoMo · Bank transfer · Paystack</span>
+        <span>© {year} Media Extensions · Koforidua, Ghana</span>
       </div>
     </footer>
   );

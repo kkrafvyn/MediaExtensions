@@ -1,11 +1,13 @@
 import { Router } from "express";
 import multer from "multer";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { db } from "../db/index.js";
 import {
+  auditLogs,
   categories,
+  orderReturns,
   orderItems,
   paymentRecords,
   orders,
@@ -16,16 +18,50 @@ import {
 } from "../db/schema.js";
 import { requireRoles, type AuthedRequest } from "../middleware/auth.js";
 import { cancelOrder, fulfillOrder, markOrderPaid, reserveStockForOrder } from "../services/orders.js";
-import { putObject, safeStorageFilename } from "../lib/storage.js";
+import { canPersistUploads, putObject, safeStorageFilename, uploadsDisabledReason } from "../lib/storage.js";
 import { ensureStoreConfig, saveStoreConfig, type StoreConfig } from "../lib/storeConfig.js";
 import { availableStock } from "../lib/inventory.js";
-import { slugify } from "../lib/utils.js";
+import {
+  canTransitionFulfillmentStatus,
+  canTransitionOrderStatus,
+  canTransitionRepairStatus,
+  canTransitionReturnStatus,
+  type FulfillmentStatus,
+} from "../lib/orderTransitions.js";
+import { recordAuditLog } from "../lib/audit.js";
+import { isEmailConfigured } from "../lib/mailer.js";
+import { notifyOrderFulfillment, notifyReturnUpdate } from "../lib/notify.js";
+import { newPasswordSchema } from "../lib/security.js";
+import { initiateRefund } from "../lib/paystack.js";
+import { formatGhs, slugify } from "../lib/utils.js";
 
 const router = Router();
+
+function parseListQuery(req: { query: unknown }) {
+  const parsed = z
+    .object({
+      q: z.string().trim().optional(),
+      page: z.coerce.number().int().min(1).default(1),
+      limit: z.coerce.number().int().min(1).max(100).default(25),
+    })
+    .safeParse(req.query);
+  if (!parsed.success) {
+    return { q: undefined as string | undefined, page: 1, limit: 25, offset: 0 };
+  }
+  const { q, page, limit } = parsed.data;
+  return { q: q || undefined, page, limit, offset: (page - 1) * limit };
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!file.mimetype.startsWith("image/")) {
+      cb(new Error("Only image files are allowed"));
+      return;
+    }
+    cb(null, true);
+  },
 });
 
 const digitalUpload = multer({
@@ -33,9 +69,26 @@ const digitalUpload = multer({
   limits: { fileSize: 200 * 1024 * 1024 },
 });
 
-router.use(requireRoles("admin", "manager"));
+router.use(requireRoles("admin", "manager", "technician"));
 
-router.post("/uploads", upload.single("file"), async (req, res) => {
+router.use((req: AuthedRequest, res, next) => {
+  if (req.user?.role !== "technician") return next();
+  const path = req.path;
+  const allowed =
+    path === "/dashboard" ||
+    path === "/repairs" ||
+    path.startsWith("/repairs/");
+  if (!allowed) {
+    return res.status(403).json({ error: "Technicians can only access repairs" });
+  }
+  next();
+});
+
+router.post("/uploads", requireRoles("admin", "manager"), upload.single("file"), async (req, res) => {
+  const uploadBlock = uploadsDisabledReason();
+  if (uploadBlock) {
+    return res.status(503).json({ error: uploadBlock });
+  }
   if (!req.file) {
     return res.status(400).json({ error: "file required" });
   }
@@ -55,7 +108,11 @@ router.post("/uploads", upload.single("file"), async (req, res) => {
   }
 });
 
-router.post("/uploads/digital", digitalUpload.single("file"), async (req, res) => {
+router.post("/uploads/digital", requireRoles("admin", "manager"), digitalUpload.single("file"), async (req, res) => {
+  const uploadBlock = uploadsDisabledReason();
+  if (uploadBlock) {
+    return res.status(503).json({ error: uploadBlock });
+  }
   if (!req.file) {
     return res.status(400).json({ error: "file required" });
   }
@@ -136,6 +193,8 @@ router.get("/analytics", async (_req, res) => {
     topProducts,
     lowStock,
     lowStockThreshold: threshold,
+    smtpConfigured: isEmailConfigured(),
+    lowStockCount: lowStock.length,
   });
 });
 
@@ -144,11 +203,14 @@ router.get("/settings", requireRoles("admin", "manager"), async (_req, res) => {
   res.json({
     settings: config,
     paystackEnabled: Boolean(process.env.PAYSTACK_SECRET_KEY?.trim()),
+    storageDriver: process.env.STORAGE_DRIVER?.trim().toLowerCase() === "s3" ? "s3" : "local",
+    uploadsEnabled: canPersistUploads(),
+    uploadsWarning: uploadsDisabledReason(),
     note: "Paystack keys remain in environment variables for security.",
   });
 });
 
-router.put("/settings", requireRoles("admin"), async (req, res) => {
+router.put("/settings", requireRoles("admin"), async (req: AuthedRequest, res) => {
   const schema = z.object({
     shipping: z
       .object({
@@ -158,16 +220,16 @@ router.put("/settings", requireRoles("admin"), async (req, res) => {
       .optional(),
     momo: z
       .object({
-        network: z.string().min(1).max(40),
-        number: z.string().min(1).max(40),
-        name: z.string().min(1).max(120),
+        network: z.string().max(40),
+        number: z.string().max(40),
+        name: z.string().max(120),
       })
       .optional(),
     bank: z
       .object({
-        bankName: z.string().min(1).max(120),
-        accountNumber: z.string().min(1).max(40),
-        accountName: z.string().min(1).max(120),
+        bankName: z.string().max(120),
+        accountNumber: z.string().max(40),
+        accountName: z.string().max(120),
       })
       .optional(),
     pickup: z
@@ -195,6 +257,13 @@ router.put("/settings", requireRoles("admin"), async (req, res) => {
   }
 
   const settings = await saveStoreConfig(parsed.data as Partial<StoreConfig>);
+  await recordAuditLog({
+    actorUserId: req.user!.id,
+    action: "store_settings_updated",
+    entityType: "store_settings",
+    entityId: "store",
+    details: { changedSections: Object.keys(parsed.data) },
+  });
   res.json({ settings, ok: true });
 });
 
@@ -222,12 +291,172 @@ router.get("/dashboard", async (_req, res) => {
   });
 });
 
-router.get("/orders", async (_req, res) => {
+router.get("/orders", async (req, res) => {
+  const { q, page, limit, offset } = parseListQuery(req);
+  const where = q
+    ? or(ilike(orders.email, `%${q}%`), ilike(orders.name, `%${q}%`), ilike(orders.id, `%${q}%`))
+    : undefined;
   const rows = await db.query.orders.findMany({
+    where,
     with: { items: true, payments: { with: { recordedBy: true } } },
     orderBy: [desc(orders.createdAt)],
+    limit,
+    offset,
   });
-  res.json({ orders: rows });
+  const [countRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(orders)
+    .where(where);
+  res.json({ orders: rows, page, limit, total: countRow?.count ?? rows.length });
+});
+
+router.get("/audit-logs", requireRoles("admin"), async (_req, res) => {
+  const rows = await db.query.auditLogs.findMany({
+    with: { actor: true },
+    orderBy: [desc(auditLogs.createdAt)],
+    limit: 200,
+  });
+  res.json({ auditLogs: rows.map(({ actor, ...entry }) => ({ ...entry, actor: actor ? { id: actor.id, name: actor.name, email: actor.email } : null })) });
+});
+
+router.get("/returns", async (_req, res) => {
+  const rows = await db.query.orderReturns.findMany({
+    with: { order: true, requestedBy: true, reviewedBy: true },
+    orderBy: [desc(orderReturns.requestedAt)],
+  });
+  res.json({ returns: rows });
+});
+
+router.patch("/returns/:id", async (req: AuthedRequest, res) => {
+  const schema = z.object({
+    status: z.enum(["approved", "rejected", "refund_pending", "refunded"]),
+    decisionNotes: z.string().trim().max(1000).optional(),
+    refundPesewas: z.number().int().positive().optional(),
+    refundReference: z.string().trim().min(1).max(160).optional(),
+  }).refine((data) => data.status !== "refunded" || (data.refundPesewas !== undefined && Boolean(data.refundReference)))
+    .refine((data) => data.status !== "refund_pending" || data.refundPesewas !== undefined);
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Refunds require a positive amount and transaction reference" });
+
+  const request = await db.query.orderReturns.findFirst({
+    where: eq(orderReturns.id, req.params.id),
+    with: { order: true },
+  });
+  if (!request) return res.status(404).json({ error: "Return request not found" });
+  if ((parsed.data.status === "refunded" || parsed.data.status === "refund_pending") && req.user?.role !== "admin") {
+    return res.status(403).json({ error: "Only an admin can issue or record refunds" });
+  }
+  if (!canTransitionReturnStatus(request.status, parsed.data.status)) {
+    return res.status(409).json({ error: "Invalid return review transition" });
+  }
+  if ((parsed.data.status === "refunded" || parsed.data.status === "refund_pending") && parsed.data.refundPesewas! > request.order.totalPesewas) {
+    return res.status(400).json({ error: "Refund cannot exceed the order total" });
+  }
+
+  if (parsed.data.status === "refund_pending") {
+    if (request.order.paymentMethod !== "paystack" || !request.order.paystackReference) {
+      return res.status(400).json({ error: "Automatic refunds require a verified Paystack transaction" });
+    }
+    if (request.status !== "approved" && request.status !== "refund_failed") {
+      return res.status(409).json({ error: "Only approved or failed refunds can be queued" });
+    }
+    const [claimed] = await db.update(orderReturns).set({
+      status: "refund_pending",
+      decisionNotes: parsed.data.decisionNotes || request.decisionNotes,
+      refundPesewas: parsed.data.refundPesewas,
+      refundReference: null,
+      reviewedByUserId: req.user!.id,
+      updatedAt: new Date(),
+    }).where(and(eq(orderReturns.id, request.id), eq(orderReturns.status, request.status))).returning();
+    if (!claimed) return res.status(409).json({ error: "Return request changed; reload and try again" });
+
+    let providerRefund;
+    try {
+      providerRefund = await initiateRefund({
+        transactionReference: request.order.paystackReference,
+        amountPesewas: parsed.data.refundPesewas!,
+        customerNote: `Return request ${request.id.slice(0, 8)}`,
+        merchantNote: parsed.data.decisionNotes || request.reason,
+      });
+    } catch (err) {
+      await db.update(orderReturns).set({
+        decisionNotes: "Refund request response was uncertain. Verify status in Paystack before retrying.",
+        updatedAt: new Date(),
+      }).where(eq(orderReturns.id, claimed.id));
+      await recordAuditLog({
+        actorUserId: req.user!.id,
+        action: "paystack_refund_response_uncertain",
+        entityType: "order_return",
+        entityId: claimed.id,
+        details: { orderId: request.orderId, refundPesewas: claimed.refundPesewas },
+      });
+      console.error("[paystack:refund] response uncertain", err);
+      return res.status(502).json({ error: "Refund response was not confirmed. Check Paystack before retrying." });
+    }
+
+    const providerReference = providerRefund.refund_reference || (providerRefund.id ? String(providerRefund.id) : null);
+    const [updated] = await db.update(orderReturns).set({
+      refundReference: providerReference,
+      updatedAt: new Date(),
+    }).where(eq(orderReturns.id, claimed.id)).returning();
+    await recordAuditLog({
+      actorUserId: req.user!.id,
+      action: "paystack_refund_queued",
+      entityType: "order_return",
+      entityId: claimed.id,
+      details: { orderId: request.orderId, refundPesewas: claimed.refundPesewas, providerReference },
+    });
+    void notifyReturnUpdate({
+      id: claimed.id,
+      orderId: request.orderId,
+      email: request.order.email,
+      name: request.order.name,
+      phone: request.order.phone,
+      reason: request.reason,
+      details: request.details,
+      status: "refund_pending",
+      decisionNotes: claimed.decisionNotes,
+      refundPesewas: claimed.refundPesewas,
+      refundReference: providerReference,
+    }).catch((err) => console.error("[notify:return] refund queued", err));
+    res.json({ returnRequest: updated });
+    return;
+  }
+
+  if (parsed.data.status === "refunded" && request.order.paymentMethod === "paystack") {
+    return res.status(409).json({ error: "Paystack refunds are marked complete by the provider webhook" });
+  }
+
+  const [updated] = await db.update(orderReturns).set({
+    status: parsed.data.status,
+    decisionNotes: parsed.data.decisionNotes || null,
+    refundPesewas: parsed.data.status === "refunded" ? parsed.data.refundPesewas : request.refundPesewas,
+    refundReference: parsed.data.status === "refunded" ? parsed.data.refundReference : request.refundReference,
+    reviewedByUserId: req.user!.id,
+    updatedAt: new Date(),
+  }).where(and(eq(orderReturns.id, request.id), eq(orderReturns.status, request.status))).returning();
+  if (!updated) return res.status(409).json({ error: "Return request changed; reload and try again" });
+  await recordAuditLog({
+    actorUserId: req.user!.id,
+    action: `return_${updated.status}`,
+    entityType: "order_return",
+    entityId: updated.id,
+    details: { orderId: request.orderId, refundPesewas: updated.refundPesewas, refundReference: updated.refundReference },
+  });
+  void notifyReturnUpdate({
+    id: updated.id,
+    orderId: request.orderId,
+    email: request.order.email,
+    name: request.order.name,
+    phone: request.order.phone,
+    reason: request.reason,
+    details: request.details,
+    status: updated.status,
+    decisionNotes: updated.decisionNotes,
+    refundPesewas: updated.refundPesewas,
+    refundReference: updated.refundReference,
+  }).catch((err) => console.error("[notify:return] update failed", err));
+  res.json({ returnRequest: updated });
 });
 
 router.post("/orders/:id/payments", async (req: AuthedRequest, res) => {
@@ -246,12 +475,14 @@ router.post("/orders/:id/payments", async (req: AuthedRequest, res) => {
     with: { payments: true },
   });
   if (!order) return res.status(404).json({ error: "Order not found" });
-  if (order.status === "cancelled") return res.status(409).json({ error: "Cancelled orders cannot receive payments" });
+  if (order.status !== "pending_payment" && order.status !== "awaiting_pickup") {
+    return res.status(409).json({ error: "Payments can only be recorded for unpaid orders" });
+  }
 
   const received = order.payments.reduce((total, payment) => total + payment.amountPesewas, 0);
   const remaining = order.totalPesewas - received;
   if (parsed.data.amountPesewas > remaining) {
-    return res.status(400).json({ error: `Payment exceeds outstanding balance of ${remaining} pesewas` });
+    return res.status(400).json({ error: `Payment exceeds outstanding balance of ${formatGhs(remaining)}` });
   }
 
   const [payment] = await db.insert(paymentRecords).values({
@@ -266,10 +497,17 @@ router.post("/orders/:id/payments", async (req: AuthedRequest, res) => {
 
   const paidTotal = received + payment.amountPesewas;
   const updated = paidTotal === order.totalPesewas ? await markOrderPaid(order.id) : order;
+  await recordAuditLog({
+    actorUserId: req.user!.id,
+    action: "offline_payment_recorded",
+    entityType: "order_payment",
+    entityId: payment.id,
+    details: { orderId: order.id, method: payment.method, amountPesewas: payment.amountPesewas, reference: payment.reference },
+  });
   res.status(201).json({ payment, paidTotalPesewas: paidTotal, order: updated });
 });
 
-router.patch("/orders/:id", async (req, res) => {
+router.patch("/orders/:id", async (req: AuthedRequest, res) => {
   const schema = z.object({
     status: z.enum(["pending_payment", "awaiting_pickup", "paid", "fulfilled", "cancelled"]),
   });
@@ -283,25 +521,26 @@ router.patch("/orders/:id", async (req, res) => {
     return res.status(404).json({ error: "Order not found" });
   }
 
-  if (parsed.data.status === "paid") {
-    const updated = await markOrderPaid(existing.id);
-    return res.json({ order: updated });
+  if (!canTransitionOrderStatus(existing.status, parsed.data.status)) {
+    return res.status(409).json({ error: "Invalid order status transition. Record payment before fulfillment." });
   }
 
   if (parsed.data.status === "fulfilled") {
-    if (existing.status !== "paid") {
-      await markOrderPaid(existing.id);
+    if (existing.fulfillmentMethod !== "digital") {
+      return res.status(409).json({ error: "Update physical fulfillment through its delivery or pickup steps" });
     }
     await fulfillOrder(existing.id);
     const updated = await db.query.orders.findFirst({
       where: eq(orders.id, existing.id),
       with: { items: { with: { downloadTokens: true } } },
     });
+    await recordAuditLog({ actorUserId: req.user!.id, action: "digital_order_fulfilled", entityType: "order", entityId: existing.id });
     return res.json({ order: updated });
   }
 
   if (parsed.data.status === "cancelled") {
     const updated = await cancelOrder(existing.id);
+    await recordAuditLog({ actorUserId: req.user!.id, action: "order_cancelled", entityType: "order", entityId: existing.id });
     return res.json({ order: updated });
   }
 
@@ -311,15 +550,124 @@ router.patch("/orders/:id", async (req, res) => {
     .where(eq(orders.id, existing.id))
     .returning();
 
+  await recordAuditLog({
+    actorUserId: req.user!.id,
+    action: "order_status_updated",
+    entityType: "order",
+    entityId: existing.id,
+    details: { from: existing.status, to: parsed.data.status },
+  });
+
   res.json({ order: updated });
 });
 
-router.get("/products", async (_req, res) => {
+router.patch("/orders/:id/notes", async (req: AuthedRequest, res) => {
+  const schema = z.object({ staffNotes: z.string().max(2000) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid notes" });
+  const [updated] = await db
+    .update(orders)
+    .set({ staffNotes: parsed.data.staffNotes.trim() || null, updatedAt: new Date() })
+    .where(eq(orders.id, req.params.id))
+    .returning();
+  if (!updated) return res.status(404).json({ error: "Order not found" });
+  res.json({ order: updated });
+});
+
+router.patch("/orders/:id/fulfillment", async (req: AuthedRequest, res) => {
+  const schema = z.object({
+    fulfillmentStatus: z.enum([
+      "not_required",
+      "unfulfilled",
+      "preparing",
+      "ready_to_ship",
+      "shipped",
+      "delivered",
+      "ready_for_pickup",
+      "collected",
+    ]).optional(),
+    trackingCarrier: z.string().trim().max(120).nullable().optional(),
+    trackingNumber: z.string().trim().max(160).nullable().optional(),
+    trackingUrl: z.string().trim().max(500).url().refine((value) => /^https?:\/\//i.test(value)).or(z.literal("")).nullable().optional(),
+  }).refine((data) => Object.values(data).some((value) => value !== undefined));
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid fulfillment update" });
+
+  const order = await db.query.orders.findFirst({ where: eq(orders.id, req.params.id) });
+  if (!order) return res.status(404).json({ error: "Order not found" });
+  if (order.status !== "paid" && order.status !== "fulfilled") {
+    return res.status(409).json({ error: "Payment must be confirmed before fulfillment" });
+  }
+  if (order.fulfillmentMethod === "digital") {
+    return res.status(409).json({ error: "Digital orders do not require physical fulfillment" });
+  }
+  if (order.fulfillmentMethod === "pickup" && (parsed.data.trackingCarrier || parsed.data.trackingNumber || parsed.data.trackingUrl)) {
+    return res.status(400).json({ error: "Shipment tracking is only available for delivery orders" });
+  }
+  if (parsed.data.fulfillmentStatus && parsed.data.fulfillmentStatus !== order.fulfillmentStatus && !canTransitionFulfillmentStatus(
+    order.fulfillmentMethod,
+    order.fulfillmentStatus,
+    parsed.data.fulfillmentStatus as FulfillmentStatus,
+  )) {
+    return res.status(409).json({ error: "Invalid fulfillment status transition" });
+  }
+
+  const nextStatus = parsed.data.fulfillmentStatus ?? order.fulfillmentStatus;
+  const trackingNumber = parsed.data.trackingNumber === undefined ? order.trackingNumber : parsed.data.trackingNumber || null;
+  const trackingUrl = parsed.data.trackingUrl === undefined ? order.trackingUrl : parsed.data.trackingUrl || null;
+  if (nextStatus === "shipped" && !trackingNumber && !trackingUrl) {
+    return res.status(400).json({ error: "Add a tracking number or tracking link before marking this shipped" });
+  }
+
+  const [updated] = await db.update(orders).set({
+    fulfillmentStatus: nextStatus,
+    trackingCarrier: parsed.data.trackingCarrier === undefined ? order.trackingCarrier : parsed.data.trackingCarrier || null,
+    trackingNumber,
+    trackingUrl,
+    status: nextStatus === "delivered" || nextStatus === "collected" ? "fulfilled" : order.status,
+    fulfilledAt: nextStatus === "delivered" || nextStatus === "collected" ? new Date() : order.fulfilledAt,
+    updatedAt: new Date(),
+  }).where(eq(orders.id, order.id)).returning();
+  await recordAuditLog({
+    actorUserId: req.user!.id,
+    action: "order_fulfillment_updated",
+    entityType: "order",
+    entityId: order.id,
+    details: { from: order.fulfillmentStatus, to: nextStatus, carrier: parsed.data.trackingCarrier, trackingNumber },
+  });
+  if (nextStatus !== order.fulfillmentStatus || trackingNumber !== order.trackingNumber || trackingUrl !== order.trackingUrl) {
+    void notifyOrderFulfillment({
+      id: updated.id,
+      email: order.email,
+      name: order.name,
+      phone: order.phone,
+      fulfillmentMethod: order.fulfillmentMethod,
+      fulfillmentStatus: updated.fulfillmentStatus,
+      trackingCarrier: updated.trackingCarrier,
+      trackingNumber: updated.trackingNumber,
+      trackingUrl: updated.trackingUrl,
+    }).catch((err) => console.error("[notify:fulfillment] update failed", err));
+  }
+  res.json({ order: updated });
+});
+
+router.get("/products", async (req, res) => {
+  const { q, page, limit, offset } = parseListQuery(req);
+  const where = q
+    ? or(ilike(products.name, `%${q}%`), ilike(products.slug, `%${q}%`))
+    : undefined;
   const rows = await db.query.products.findMany({
+    where,
     with: { category: true },
     orderBy: [asc(products.name)],
+    limit,
+    offset,
   });
-  res.json({ products: rows });
+  const [countRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(products)
+    .where(where);
+  res.json({ products: rows, page, limit, total: countRow?.count ?? rows.length });
 });
 
 /**
@@ -364,6 +712,8 @@ router.post("/pos/orders", requireRoles("admin"), async (req: AuthedRequest, res
     name: customerName,
     phone: parsed.data.customerPhone?.trim() || null,
     status: "pending_payment",
+    fulfillmentMethod: selected.some((product) => product.fulfillment !== "digital") ? "pickup" : "digital",
+    fulfillmentStatus: selected.some((product) => product.fulfillment !== "digital") ? "collected" : "not_required",
     paymentMethod: parsed.data.paymentMethod,
     subtotalPesewas: totalPesewas,
     totalPesewas,
@@ -393,6 +743,13 @@ router.post("/pos/orders", requireRoles("admin"), async (req: AuthedRequest, res
       recordedByUserId: req.user!.id,
     });
     const paid = await markOrderPaid(order.id);
+    await recordAuditLog({
+      actorUserId: req.user!.id,
+      action: "pos_sale_recorded",
+      entityType: "order",
+      entityId: order.id,
+      details: { totalPesewas, paymentMethod: parsed.data.paymentMethod, items: parsed.data.items },
+    });
     return res.status(201).json({ order: paid });
   } catch (err) {
     await db.delete(orderItems).where(eq(orderItems.orderId, order.id));
@@ -402,7 +759,7 @@ router.post("/pos/orders", requireRoles("admin"), async (req: AuthedRequest, res
 });
 
 /** Create a walk-in GSM ticket without making the customer use the website. */
-router.post("/pos/repairs", requireRoles("admin"), async (_req: AuthedRequest, res) => {
+router.post("/pos/repairs", requireRoles("admin"), async (req: AuthedRequest, res) => {
   const schema = z.object({
     name: z.string().min(1).max(120),
     phone: z.string().min(8).max(40),
@@ -416,7 +773,7 @@ router.post("/pos/repairs", requireRoles("admin"), async (_req: AuthedRequest, r
     paymentStatus: z.enum(["unpaid", "paid"]),
     staffNotes: z.string().max(2000).optional(),
   });
-  const parsed = schema.safeParse(_req.body);
+  const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Enter the customer's device and repair details" });
 
   let service = null;
@@ -439,10 +796,17 @@ router.post("/pos/repairs", requireRoles("admin"), async (_req: AuthedRequest, r
     status: quotePesewas != null ? "quoted" : "submitted",
     staffNotes: parsed.data.staffNotes?.trim() || "Walk-in POS intake",
   }).returning();
+  await recordAuditLog({
+    actorUserId: req.user!.id,
+    action: "pos_repair_created",
+    entityType: "repair_order",
+    entityId: repair.id,
+    details: { quotePesewas, paymentStatus: repair.paymentStatus, serviceId: repair.serviceId },
+  });
   res.status(201).json({ repair });
 });
 
-router.post("/products", requireRoles("admin"), async (req, res) => {
+router.post("/products", requireRoles("admin"), async (req: AuthedRequest, res) => {
   const schema = z.object({
     name: z.string().min(1),
     description: z.string().min(1),
@@ -468,6 +832,13 @@ router.post("/products", requireRoles("admin"), async (req, res) => {
     .insert(products)
     .values({ ...parsed.data, slug })
     .returning();
+  await recordAuditLog({
+    actorUserId: req.user!.id,
+    action: "product_created",
+    entityType: "product",
+    entityId: row.id,
+    details: { name: row.name, pricePesewas: row.pricePesewas },
+  });
   res.status(201).json({ product: row });
 });
 
@@ -492,21 +863,68 @@ router.patch("/products/:id", async (req: AuthedRequest, res) => {
     return res.status(403).json({ error: "Only an admin can change prices" });
   }
 
+  const existing = await db.query.products.findFirst({ where: eq(products.id, req.params.id) });
+  if (!existing) return res.status(404).json({ error: "Not found" });
+  if (parsed.data.stock != null && parsed.data.stock < (existing.reserved ?? 0)) {
+    return res.status(400).json({
+      error: `Stock cannot be below reserved quantity (${existing.reserved ?? 0})`,
+    });
+  }
+
   const [row] = await db
     .update(products)
     .set(parsed.data)
     .where(eq(products.id, req.params.id))
     .returning();
   if (!row) return res.status(404).json({ error: "Not found" });
+  await recordAuditLog({
+    actorUserId: req.user!.id,
+    action: "product_updated",
+    entityType: "product",
+    entityId: row.id,
+    details: { changes: parsed.data },
+  });
   res.json({ product: row });
 });
 
-router.get("/repairs", async (_req, res) => {
-  const rows = await db.query.repairOrders.findMany({
-    with: { service: true },
-    orderBy: [desc(repairOrders.createdAt)],
+router.delete("/products/:id", requireRoles("admin"), async (req: AuthedRequest, res) => {
+  const [row] = await db
+    .update(products)
+    .set({ active: false })
+    .where(eq(products.id, req.params.id))
+    .returning();
+  if (!row) return res.status(404).json({ error: "Not found" });
+  await recordAuditLog({
+    actorUserId: req.user!.id,
+    action: "product_archived",
+    entityType: "product",
+    entityId: row.id,
+    details: { name: row.name },
   });
-  res.json({ repairs: rows });
+  res.json({ product: row });
+});
+
+router.get("/repairs", async (req, res) => {
+  const { q, page, limit, offset } = parseListQuery(req);
+  const where = q
+    ? or(
+        ilike(repairOrders.email, `%${q}%`),
+        ilike(repairOrders.name, `%${q}%`),
+        ilike(repairOrders.id, `%${q}%`),
+      )
+    : undefined;
+  const rows = await db.query.repairOrders.findMany({
+    where,
+    with: { service: true, payments: true },
+    orderBy: [desc(repairOrders.createdAt)],
+    limit,
+    offset,
+  });
+  const [countRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(repairOrders)
+    .where(where);
+  res.json({ repairs: rows, page, limit, total: countRow?.count ?? rows.length });
 });
 
 router.patch("/repairs/:id", async (req: AuthedRequest, res) => {
@@ -535,13 +953,155 @@ router.patch("/repairs/:id", async (req: AuthedRequest, res) => {
     return res.status(403).json({ error: "Only an admin can set repair quotes" });
   }
 
+  const existing = await db.query.repairOrders.findFirst({ where: eq(repairOrders.id, req.params.id) });
+  if (!existing) return res.status(404).json({ error: "Not found" });
+  if (parsed.data.status && !canTransitionRepairStatus(existing.status, parsed.data.status)) {
+    return res.status(409).json({ error: "Invalid repair status transition" });
+  }
+
   const [row] = await db
     .update(repairOrders)
     .set({ ...parsed.data, updatedAt: new Date() })
     .where(eq(repairOrders.id, req.params.id))
     .returning();
   if (!row) return res.status(404).json({ error: "Not found" });
+  await recordAuditLog({
+    actorUserId: req.user!.id,
+    action: "repair_updated",
+    entityType: "repair_order",
+    entityId: row.id,
+    details: { status: parsed.data.status, quotePesewas: parsed.data.quotePesewas, paymentStatus: parsed.data.paymentStatus, paymentMethod: parsed.data.paymentMethod },
+  });
   res.json({ repair: row });
+});
+
+router.post("/repairs/:id/payments", async (req: AuthedRequest, res) => {
+  const schema = z.object({
+    method: z.enum(["cash", "momo", "bank", "other"]),
+    amountPesewas: z.number().int().positive(),
+    reference: z.string().max(160).optional(),
+    notes: z.string().max(500).optional(),
+    receivedAt: z.string().datetime().optional(),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid payment record" });
+
+  const repair = await db.query.repairOrders.findFirst({
+    where: eq(repairOrders.id, req.params.id),
+    with: { payments: true },
+  });
+  if (!repair) return res.status(404).json({ error: "Repair not found" });
+
+  const duePesewas = repair.quotePesewas;
+  if (duePesewas == null || duePesewas <= 0) {
+    return res.status(409).json({ error: "Set a repair quote before recording payments" });
+  }
+
+  const received = repair.payments.reduce((total, payment) => total + payment.amountPesewas, 0);
+  const remaining = duePesewas - received;
+  if (parsed.data.amountPesewas > remaining) {
+    return res.status(400).json({ error: `Payment exceeds outstanding balance of ${formatGhs(remaining)}` });
+  }
+
+  const [payment] = await db
+    .insert(paymentRecords)
+    .values({
+      repairOrderId: repair.id,
+      method: parsed.data.method,
+      amountPesewas: parsed.data.amountPesewas,
+      reference: parsed.data.reference?.trim() || null,
+      notes: parsed.data.notes?.trim() || null,
+      receivedAt: parsed.data.receivedAt ? new Date(parsed.data.receivedAt) : new Date(),
+      recordedByUserId: req.user!.id,
+    })
+    .returning();
+
+  const paidTotal = received + payment.amountPesewas;
+  if (paidTotal >= duePesewas) {
+    await db
+      .update(repairOrders)
+      .set({ paymentStatus: "paid", updatedAt: new Date() })
+      .where(eq(repairOrders.id, repair.id));
+  }
+
+  const updated = await db.query.repairOrders.findFirst({
+    where: eq(repairOrders.id, repair.id),
+    with: { service: true, payments: true },
+  });
+
+  await recordAuditLog({
+    actorUserId: req.user!.id,
+    action: "repair_payment_recorded",
+    entityType: "repair_payment",
+    entityId: payment.id,
+    details: { repairId: repair.id, method: payment.method, amountPesewas: payment.amountPesewas },
+  });
+
+  res.status(201).json({ payment, paidTotalPesewas: paidTotal, repair: updated ?? repair });
+});
+
+router.get("/export/orders", requireRoles("admin", "manager"), async (req, res) => {
+  const { q, limit } = parseListQuery(req);
+  const where = q
+    ? or(
+        ilike(orders.email, `%${q}%`),
+        ilike(orders.name, `%${q}%`),
+        ilike(orders.id, `%${q}%`),
+      )
+    : undefined;
+  const rows = await db.query.orders.findMany({
+    where,
+    orderBy: [desc(orders.createdAt)],
+    limit: Math.min(limit, 5000),
+  });
+  const header = "id,email,name,status,total_pesewas,payment_method,created_at\n";
+  const body = rows
+    .map((o) =>
+      [o.id, o.email, o.name, o.status, o.totalPesewas, o.paymentMethod ?? "", o.createdAt.toISOString()]
+        .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
+        .join(","),
+    )
+    .join("\n");
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", 'attachment; filename="orders.csv"');
+  res.send(header + body);
+});
+
+router.get("/export/repairs", requireRoles("admin", "manager", "technician"), async (req, res) => {
+  const { q, limit } = parseListQuery(req);
+  const where = q
+    ? or(
+        ilike(repairOrders.email, `%${q}%`),
+        ilike(repairOrders.name, `%${q}%`),
+        ilike(repairOrders.id, `%${q}%`),
+      )
+    : undefined;
+  const rows = await db.query.repairOrders.findMany({
+    where,
+    orderBy: [desc(repairOrders.createdAt)],
+    limit: Math.min(limit, 5000),
+  });
+  const header = "id,email,name,device,status,quote_pesewas,payment_status,imei,created_at\n";
+  const body = rows
+    .map((r) =>
+      [
+        r.id,
+        r.email,
+        r.name,
+        `${r.deviceBrand} ${r.deviceModel}`,
+        r.status,
+        r.quotePesewas ?? "",
+        r.paymentStatus,
+        r.imei ?? "",
+        r.createdAt.toISOString(),
+      ]
+        .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
+        .join(","),
+    )
+    .join("\n");
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", 'attachment; filename="repairs.csv"');
+  res.send(header + body);
 });
 
 router.get("/repair-services", async (_req, res) => {
@@ -549,7 +1109,7 @@ router.get("/repair-services", async (_req, res) => {
   res.json({ services: rows });
 });
 
-router.post("/repair-services", requireRoles("admin"), async (req, res) => {
+router.post("/repair-services", requireRoles("admin"), async (req: AuthedRequest, res) => {
   const schema = z.object({
     name: z.string().min(1),
     description: z.string().min(1),
@@ -566,6 +1126,13 @@ router.post("/repair-services", requireRoles("admin"), async (req, res) => {
     .insert(repairServices)
     .values({ ...parsed.data, slug, pricePesewas: parsed.data.pricePesewas ?? null })
     .returning();
+  await recordAuditLog({
+    actorUserId: req.user!.id,
+    action: "repair_service_created",
+    entityType: "repair_service",
+    entityId: row.id,
+    details: { name: row.name, pricePesewas: row.pricePesewas },
+  });
   res.status(201).json({ service: row });
 });
 
@@ -588,6 +1155,30 @@ router.patch("/repair-services/:id", async (req: AuthedRequest, res) => {
     .where(eq(repairServices.id, req.params.id))
     .returning();
   if (!row) return res.status(404).json({ error: "Not found" });
+  await recordAuditLog({
+    actorUserId: req.user!.id,
+    action: "repair_service_updated",
+    entityType: "repair_service",
+    entityId: row.id,
+    details: { changes: parsed.data },
+  });
+  res.json({ service: row });
+});
+
+router.delete("/repair-services/:id", requireRoles("admin"), async (req: AuthedRequest, res) => {
+  const [row] = await db
+    .update(repairServices)
+    .set({ active: false })
+    .where(eq(repairServices.id, req.params.id))
+    .returning();
+  if (!row) return res.status(404).json({ error: "Not found" });
+  await recordAuditLog({
+    actorUserId: req.user!.id,
+    action: "repair_service_archived",
+    entityType: "repair_service",
+    entityId: row.id,
+    details: { name: row.name },
+  });
   res.json({ service: row });
 });
 
@@ -599,7 +1190,7 @@ router.get("/categories", async (_req, res) => {
   res.json({ categories: rows });
 });
 
-router.post("/categories", requireRoles("admin"), async (req, res) => {
+router.post("/categories", requireRoles("admin"), async (req: AuthedRequest, res) => {
   const schema = z.object({
     name: z.string().min(1),
     description: z.string().optional(),
@@ -617,10 +1208,17 @@ router.post("/categories", requireRoles("admin"), async (req, res) => {
     .insert(categories)
     .values({ ...parsed.data, slug })
     .returning();
+  await recordAuditLog({
+    actorUserId: req.user!.id,
+    action: "category_created",
+    entityType: "category",
+    entityId: row.id,
+    details: { name: row.name, slug: row.slug },
+  });
   res.status(201).json({ category: row });
 });
 
-router.patch("/categories/:id", requireRoles("admin"), async (req, res) => {
+router.patch("/categories/:id", requireRoles("admin"), async (req: AuthedRequest, res) => {
   const schema = z.object({
     name: z.string().min(1).optional(),
     description: z.string().nullable().optional(),
@@ -630,20 +1228,33 @@ router.patch("/categories/:id", requireRoles("admin"), async (req, res) => {
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid category" });
 
-  const data: Record<string, unknown> = { ...parsed.data };
-  if (parsed.data.name) data.slug = slugify(parsed.data.name);
-
   const [row] = await db
     .update(categories)
-    .set(data)
+    .set(parsed.data)
     .where(eq(categories.id, req.params.id))
     .returning();
   if (!row) return res.status(404).json({ error: "Not found" });
+  await recordAuditLog({
+    actorUserId: req.user!.id,
+    action: "category_updated",
+    entityType: "category",
+    entityId: row.id,
+    details: { changes: parsed.data },
+  });
   res.json({ category: row });
 });
 
-router.delete("/categories/:id", requireRoles("admin"), async (req, res) => {
+router.delete("/categories/:id", requireRoles("admin"), async (req: AuthedRequest, res) => {
+  const category = await db.query.categories.findFirst({ where: eq(categories.id, req.params.id) });
+  if (!category) return res.status(404).json({ error: "Not found" });
   await db.delete(categories).where(eq(categories.id, req.params.id));
+  await recordAuditLog({
+    actorUserId: req.user!.id,
+    action: "category_deleted",
+    entityType: "category",
+    entityId: category.id,
+    details: { name: category.name, slug: category.slug },
+  });
   res.json({ ok: true });
 });
 
@@ -663,10 +1274,10 @@ router.get("/users", requireRoles("admin"), async (_req, res) => {
 
 router.patch("/users/:id", requireRoles("admin"), async (req: AuthedRequest, res) => {
   const schema = z.object({
-    role: z.enum(["admin", "manager", "consumer"]).optional(),
+    role: z.enum(["admin", "manager", "technician", "consumer"]).optional(),
     name: z.string().min(1).optional(),
     phone: z.string().nullable().optional(),
-    password: z.string().min(6).optional(),
+    password: newPasswordSchema.optional(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid update" });
@@ -688,6 +1299,18 @@ router.patch("/users/:id", requireRoles("admin"), async (req: AuthedRequest, res
   if (parsed.data.password) update.passwordHash = await bcrypt.hash(parsed.data.password, 10);
 
   const [row] = await db.update(users).set(update).where(eq(users.id, target.id)).returning();
+  await recordAuditLog({
+    actorUserId: req.user!.id,
+    action: "user_updated",
+    entityType: "user",
+    entityId: row.id,
+    details: {
+      role: parsed.data.role,
+      name: parsed.data.name,
+      phoneChanged: parsed.data.phone !== undefined,
+      passwordChanged: Boolean(parsed.data.password),
+    },
+  });
   res.json({
     user: {
       id: row.id,

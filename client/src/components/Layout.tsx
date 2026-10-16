@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { usePageTitle } from "../lib/usePageTitle";
@@ -6,7 +6,11 @@ import { ToastHost } from "./Toast";
 import { Footer } from "./Footer";
 import { CartDrawer } from "./CartDrawer";
 import { SearchModal } from "./SearchModal";
+import { BrandLogo } from "./BrandLogo";
 import { IconClose, IconMenu } from "./Icons";
+import { useFocusTrap } from "../lib/useFocusTrap";
+import { ThemePicker } from "./ThemePicker";
+import { APP_CAROUSEL, BackgroundCarousel } from "./BackgroundCarousel";
 
 export function Layout() {
   const { user, cart } = useAuth();
@@ -14,7 +18,12 @@ export function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
-  const staff = user?.role === "admin" || user?.role === "manager";
+  const menuRef = useRef<HTMLElement>(null);
+  useFocusTrap(menuRef, mobileOpen);
+  const staff =
+    user?.role === "admin" || user?.role === "manager" || user?.role === "technician";
+  const onStaffRoute = location.pathname.startsWith("/staff");
+  const showMediaBackground = !onStaffRoute;
 
   usePageTitle(location.pathname);
 
@@ -22,7 +31,20 @@ export function Layout() {
     setMobileOpen(false);
     setCartDrawerOpen(false);
     setSearchModalOpen(false);
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    function closeOnEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") setMobileOpen(false);
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [mobileOpen]);
 
   useEffect(() => {
     if (mobileOpen) {
@@ -51,22 +73,15 @@ export function Layout() {
   }, []);
 
   return (
-    <div className="shell">
+    <div className={`shell${showMediaBackground ? " shell-on-media" : ""}`}>
+      {showMediaBackground && (
+        <BackgroundCarousel slides={APP_CAROUSEL} fixed showDots={false} />
+      )}
+      <a className="skip-link" href="#main-content">Skip to content</a>
       <header className="nav">
         <div className="container nav-inner">
           <Link to="/" className="brand-link" aria-label="Media Extensions Home">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="url(#brand-grad)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M2 17L12 22L22 17" stroke="url(#brand-grad)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M2 12L12 17L22 12" stroke="url(#brand-grad)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-              <defs>
-                <linearGradient id="brand-grad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#38bdf8"/>
-                  <stop offset="1" stopColor="#3b82f6"/>
-                </linearGradient>
-              </defs>
-            </svg>
-            <span className="brand-name">Media Extensions</span>
+            <BrandLogo size="md" />
           </Link>
 
           <nav className="nav-links" aria-label="Primary Navigation">
@@ -75,6 +90,9 @@ export function Layout() {
             </NavLink>
             <NavLink to="/repairs" className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}>
               Repairs
+            </NavLink>
+            <NavLink to="/track" className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}>
+              Track order
             </NavLink>
             {user ? (
               <NavLink to="/account" className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}>
@@ -93,8 +111,9 @@ export function Layout() {
           </nav>
 
           <div className="nav-actions">
+            <ThemePicker />
             <button
-              className="nav-search-btn hide-sm"
+              className="nav-search-btn"
               onClick={() => setSearchModalOpen(true)}
               aria-label="Search store (Ctrl+K)"
               type="button"
@@ -104,7 +123,7 @@ export function Layout() {
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               </svg>
               <span>Search</span>
-              <kbd className="nav-search-kbd">⌘K</kbd>
+              <kbd className="nav-search-kbd">Ctrl K</kbd>
             </button>
             <button
               onClick={() => setCartDrawerOpen(true)}
@@ -125,6 +144,7 @@ export function Layout() {
               onClick={() => setMobileOpen(!mobileOpen)}
               aria-label="Menu"
               aria-expanded={mobileOpen}
+              aria-controls="mobile-menu"
               type="button"
             >
               {mobileOpen ? <IconClose size={20} /> : <IconMenu size={20} />}
@@ -138,7 +158,18 @@ export function Layout() {
         onClick={() => setMobileOpen(false)}
         aria-hidden="true"
       />
-      <aside className={`mobile-drawer ${mobileOpen ? "open" : ""}`} aria-label="Menu">
+      <aside ref={menuRef} id="mobile-menu" className={`mobile-drawer ${mobileOpen ? "open" : ""}`} aria-label="Menu" role="dialog" aria-modal={mobileOpen || undefined} inert={!mobileOpen} tabIndex={-1}>
+        <div className="mobile-drawer-header">
+          <BrandLogo size="sm" />
+          <button
+            className="mobile-drawer-close"
+            onClick={() => setMobileOpen(false)}
+            aria-label="Close menu"
+            type="button"
+          >
+            <IconClose size={20} />
+          </button>
+        </div>
         <nav className="mobile-drawer-links">
           <NavLink to="/shop" className={({ isActive }) => `mobile-nav-link ${isActive ? "active" : ""}`}>
             Shop
@@ -170,9 +201,10 @@ export function Layout() {
             </NavLink>
           )}
         </nav>
+        <ThemePicker mobile />
       </aside>
 
-      <main className="main">
+      <main className="main" id="main-content" tabIndex={-1}>
         <Outlet />
       </main>
 

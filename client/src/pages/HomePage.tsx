@@ -15,43 +15,58 @@ export function HomePage() {
   const [featured, setFeatured] = useState<Product[]>([]);
   const [services, setServices] = useState<RepairService[]>([]);
   const [loading, setLoading] = useState(true);
+  const [featuredError, setFeaturedError] = useState(false);
+  const [servicesError, setServicesError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    Promise.all([
-      api<{ products: Product[] }>("/api/products?featured=true").catch(() => ({ products: [] })),
-      api<{ services: RepairService[] }>("/api/repairs/services").catch(() => ({ services: [] })),
+    let cancelled = false;
+    setLoading(true);
+    setFeaturedError(false);
+    setServicesError(false);
+    Promise.allSettled([
+      api<{ products: Product[] }>("/api/products?featured=true"),
+      api<{ services: RepairService[] }>("/api/repairs/services"),
     ])
       .then(([prodRes, servRes]) => {
-        setFeatured(prodRes.products || []);
-        setServices(servRes.services?.slice(0, 3) || []);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+        if (cancelled) return;
+        setFeaturedError(prodRes.status === "rejected");
+        setServicesError(servRes.status === "rejected");
+        setFeatured(prodRes.status === "fulfilled" ? prodRes.value.products || [] : []);
+        setServices(servRes.status === "fulfilled" ? servRes.value.services?.slice(0, 3) || [] : []);
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [retryCount]);
 
   return (
     <>
-      {/* Hero Section */}
       <section className="hero">
-        <div className="container hero-copy">
-          <p className="eyebrow">
-            Media Extensions · Accra, Ghana
-          </p>
-          <h1>
-            Creator equipment, digital assets,
-            <br />
-            and certified device repairs.
+        <div className="container hero-layout">
+        <div className="hero-copy">
+          <p className="eyebrow">Media Extensions · Koforidua, Ghana</p>
+          <h1 className="hero-title">
+            Tools for your<br />next creation.
           </h1>
-          <p className="lede">
-            The dedicated store for filmmakers, photographers, and audio engineers in Ghana. Production-ready hardware, instant downloads, and component-level repairs — priced in Ghana Cedis (GH₵).
+
+          <p className="lede hero-lede">
+            Digital assets, camera and audio equipment, and device repairs in Koforidua. Shop in Ghana cedis.
           </p>
-          <div className="cta-row" style={{ justifyContent: "center" }}>
+
+          <div className="cta-row hero-cta-row">
             <Link to="/shop" className="btn btn-primary">
-              Explore catalog
+              Shop the catalog <IconArrowRight size={16} />
             </Link>
             <Link to="/repairs" className="btn btn-light">
               Book a repair
             </Link>
           </div>
+          <Link to="/track" className="hero-track-link">Already ordered? Track your order <IconArrowRight size={14} /></Link>
+        </div>
+        <figure className="hero-visual">
+          <img src="/images/carousel/carousel-camera.jpg" alt="Camera and lens on a studio desk" width="1280" height="720" fetchPriority="high" />
+          <figcaption><span>From the first frame to the final edit.</span><Link to="/shop?fulfillment=physical">Explore gear <IconArrowRight size={16} /></Link></figcaption>
+        </figure>
         </div>
       </section>
 
@@ -74,8 +89,8 @@ export function HomePage() {
                 <IconCamera size={20} />
               </div>
               <div className="trust-content">
-                <strong>Verified Hardware</strong>
-                <p>Camera rigs, wireless microphones, studio lights, and cables inspected before dispatch.</p>
+                <strong>Camera & Audio Gear</strong>
+                <p>Rigs, microphones, lighting, and accessories for your setup.</p>
               </div>
             </div>
 
@@ -84,8 +99,8 @@ export function HomePage() {
                 <IconWrench size={20} />
               </div>
               <div className="trust-content">
-                <strong>Certified Repairs</strong>
-                <p>Logic board micro-soldering, OEM screens, and battery replacements with a 90-day warranty.</p>
+                <strong>Device Repairs</strong>
+                <p>Screen, battery, and board repairs. Book an assessment online.</p>
               </div>
             </div>
 
@@ -167,6 +182,8 @@ export function HomePage() {
                 <div className="product-skeleton" key={i} />
               ))}
             </div>
+          ) : featuredError ? (
+            <div className="home-load-error" role="alert"><p>We couldn’t load featured products.</p><button className="btn btn-light btn-sm" type="button" onClick={() => setRetryCount((value) => value + 1)}>Try again</button></div>
           ) : featured.length ? (
             <div className="product-grid">
               {featured.slice(0, 8).map((p) => (
@@ -220,14 +237,14 @@ export function HomePage() {
 
             <div className="repair-step-card">
               <div className="repair-step-num">03</div>
-              <h4>Studio Intake</h4>
+              <h4>Drop Off or Send</h4>
               <p>Bring it to our Kumasi Station shop or arrange courier delivery.</p>
             </div>
 
             <div className="repair-step-card">
               <div className="repair-step-num">04</div>
               <h4>Track & Collect</h4>
-              <p>Follow status updates online and collect with a 90-day service warranty.</p>
+              <p>Follow status updates online and collect when your device is ready.</p>
             </div>
           </div>
 
@@ -250,6 +267,8 @@ export function HomePage() {
                 </div>
               ))}
             </div>
+          ) : !loading && servicesError ? (
+            <div className="home-load-error" role="alert"><p>We couldn’t load repair services.</p><button className="btn btn-light btn-sm" type="button" onClick={() => setRetryCount((value) => value + 1)}>Try again</button></div>
           ) : !loading ? (
             <div className="empty" style={{ padding: "2rem", textAlign: "center" }}>
               <p style={{ color: "var(--muted)" }}>Repair services will appear here once published.</p>

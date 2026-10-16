@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useState, useRef } from "react";
+import { useFocusTrap } from "../lib/useFocusTrap";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api, formatGhs } from "../lib/api";
@@ -12,6 +13,10 @@ type CartDrawerProps = {
 export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   const { cart, refreshCart } = useAuth();
   const navigate = useNavigate();
+  const [updating, setUpdating] = useState(false);
+  const [error, setError] = useState("");
+  const drawerRef = useRef<HTMLElement>(null);
+  useFocusTrap(drawerRef, isOpen);
 
   // Close drawer on Escape key and lock body scroll when open
   useEffect(() => {
@@ -33,6 +38,8 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   }, [isOpen, onClose]);
 
   async function updateQty(id: string, quantity: number) {
+    setUpdating(true);
+    setError("");
     try {
       await api(`/api/cart/items/${id}`, {
         method: "PATCH",
@@ -40,16 +47,22 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
       });
       await refreshCart();
     } catch {
-      // Ignore or let parent handle
+      setError("Stock changed. Review your bag quantities.");
+    } finally {
+      setUpdating(false);
     }
   }
 
   async function removeItem(id: string) {
+    setUpdating(true);
+    setError("");
     try {
       await api(`/api/cart/items/${id}`, { method: "DELETE" });
       await refreshCart();
     } catch {
-      // Ignore
+      setError("Could not remove this item. Please try again.");
+    } finally {
+      setUpdating(false);
     }
   }
 
@@ -66,8 +79,13 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
         aria-hidden="true"
       />
       <aside
+        ref={drawerRef}
         className={`cart-drawer ${isOpen ? "open" : ""}`}
         aria-label="Shopping Bag Quick View"
+        role="dialog"
+        aria-modal={isOpen || undefined}
+        inert={!isOpen}
+        tabIndex={-1}
       >
         <div className="cart-drawer-header">
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -135,7 +153,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
           <>
             <div className="cart-drawer-items">
               {cart.items.map((line) => {
-                const isDigital = line.product.fulfillment === "digital";
+                const hasPhysical = line.product.fulfillment !== "digital";
                 return (
                   <div key={line.id} className="cart-drawer-item">
                     <div className="cart-drawer-thumb">
@@ -165,13 +183,11 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                         }}
                       >
                         <span
-                          className={`badge ${
-                            isDigital ? "badge-digital" : "badge-physical"
-                          }`}
+                          className={`badge ${line.product.fulfillment === "digital" ? "badge-digital" : line.product.fulfillment === "physical" ? "badge-physical" : "badge-both"}`}
                           style={{ fontSize: "0.65rem", padding: "0.15rem 0.4rem" }}
                         >
                           <FulfillmentBadge
-                            fulfillment={isDigital ? "digital" : "physical"}
+                            fulfillment={line.product.fulfillment}
                             variant="short"
                           />
                         </span>
@@ -182,6 +198,8 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                       <div className="qty-control" style={{ transform: "scale(0.85)", transformOrigin: "left center" }}>
                         <button
                           className="qty-btn"
+                          type="button"
+                          disabled={updating}
                           onClick={() =>
                             updateQty(line.id, Math.max(1, line.quantity - 1))
                           }
@@ -192,6 +210,8 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                         <span className="qty-val">{line.quantity}</span>
                         <button
                           className="qty-btn"
+                          type="button"
+                          disabled={updating || (hasPhysical && line.quantity >= line.product.stock)}
                           onClick={() => updateQty(line.id, line.quantity + 1)}
                           aria-label="Increase quantity"
                         >
@@ -200,6 +220,8 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                       </div>
                     </div>
                     <button
+                      type="button"
+                      disabled={updating}
                       onClick={() => removeItem(line.id)}
                       style={{
                         color: "var(--muted-light)",
@@ -230,10 +252,14 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
             </div>
 
             <div className="cart-drawer-footer">
+              {error && <div className="alert-banner" role="alert">{error}</div>}
+              {cart.items.some((line) => line.product.fulfillment !== "digital" && line.quantity > line.product.stock) && (
+                <div className="alert-banner" role="alert">Reduce quantities to match available stock.</div>
+              )}
               <div
                 style={{
-                  background: "rgba(255, 255, 255, 0.03)",
-                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  background: "var(--bg-subtle)",
+                  border: "1px solid var(--line)",
                   padding: "0.65rem 0.85rem",
                   borderRadius: "var(--radius-sm)",
                   fontSize: "0.8rem",
@@ -247,7 +273,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                   {cart.needsShipping ? (
                     <>
                       <IconPackage size={15} />
-                      <span>Shipping calculated at checkout. Accra pickup available.</span>
+                      <span>Choose store pickup or delivery at checkout.</span>
                     </>
                   ) : (
                     <>
@@ -267,6 +293,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
 
               <button
                 className="btn btn-primary"
+                disabled={updating || cart.items.some((line) => line.product.fulfillment !== "digital" && line.quantity > line.product.stock)}
                 onClick={handleCheckout}
                 style={{ width: "100%", height: "2.85rem" }}
               >

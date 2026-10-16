@@ -4,7 +4,8 @@ import { api, formatGhs } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "../components/Toast";
 import { IconBolt, IconLock, IconPhone, IconPin } from "../components/Icons";
-import type { PaymentInfo, SiteMeta } from "../types";
+import { useSiteMeta } from "../context/SiteMetaContext";
+import type { PaymentInfo } from "../types";
 
 const REGIONS = [
   "Greater Accra",
@@ -25,13 +26,14 @@ const REGIONS = [
   "North East",
 ];
 
-type PaymentMethod = "momo" | "bank" | "pickup" | "paystack";
+type FulfillmentMethod = "digital" | "delivery" | "pickup";
+type PaymentMethod = "momo" | "bank" | "pay_on_pickup" | "paystack";
 
 export function CheckoutPage() {
   const { cart, user, refreshCart } = useAuth();
   const navigate = useNavigate();
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
-  const [meta, setMeta] = useState<SiteMeta | null>(null);
+  const { meta } = useSiteMeta();
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [accepted, setAccepted] = useState(false);
@@ -39,27 +41,31 @@ export function CheckoutPage() {
   const [name, setName] = useState(user?.name ?? "");
   const [phone, setPhone] = useState(user?.phone ?? "+233 ");
   const [paymentNote, setPaymentNote] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("paystack");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("momo");
+  const [fulfillmentMethod, setFulfillmentMethod] = useState<FulfillmentMethod>("digital");
   const [shipping, setShipping] = useState({
     fullName: user?.name ?? "",
     phone: user?.phone ?? "+233 ",
     street: "",
-    city: "Accra",
-    region: "Greater Accra",
+    city: "",
+    region: "",
     landmark: "",
   });
 
   useEffect(() => {
     api<PaymentInfo>("/api/checkout/payment-info").then(setPaymentInfo).catch(() => undefined);
-    api<SiteMeta>("/api/meta").then(setMeta).catch(() => undefined);
   }, []);
 
+  useEffect(() => {
+    setFulfillmentMethod(cart?.needsShipping ? "delivery" : "digital");
+  }, [cart?.needsShipping]);
+
   const shippingPesewas = useMemo(() => {
-    if (!cart?.needsShipping || paymentMethod === "pickup" || !meta) return 0;
+    if (!cart?.needsShipping || fulfillmentMethod !== "delivery" || !meta) return 0;
     return shipping.region.toLowerCase().includes("accra")
       ? meta.shipping.accraPesewas
       : meta.shipping.otherPesewas;
-  }, [cart, paymentMethod, shipping.region, meta]);
+  }, [cart, fulfillmentMethod, shipping.region, meta]);
 
   const methods: Array<{ value: PaymentMethod; title: string; badge: ReactNode; detail: string }> = [
     {
@@ -98,18 +104,18 @@ export function CheckoutPage() {
           },
         ]
       : []),
-    ...(cart?.needsShipping
+    ...(fulfillmentMethod === "pickup"
       ? [
           {
-            value: "pickup" as const,
-            title: "Pay On In-Store Pickup",
+            value: "pay_on_pickup" as const,
+            title: "Pay when you collect",
             badge: (
               <span className="inline-icon-label">
                 <IconPin size={12} />
-                <span>Accra Studio</span>
+                <span>{meta?.pickup?.name || "In-store Pickup"}</span>
               </span>
             ),
-            detail: "Collect from our Accra location and settle in cash or MoMo",
+            detail: `Pay by cash or MoMo at ${meta?.pickup?.address || meta?.pickup?.name || "our store"}`,
           },
         ]
       : []),
@@ -134,6 +140,13 @@ export function CheckoutPage() {
     toast(`Copied ${label} to clipboard!`);
   }
 
+  function chooseFulfillment(method: FulfillmentMethod) {
+    setFulfillmentMethod(method);
+    if (method !== "pickup" && paymentMethod === "pay_on_pickup") {
+      setPaymentMethod("momo");
+    }
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!accepted) {
@@ -147,9 +160,13 @@ export function CheckoutPage() {
         email,
         name,
         phone,
-        paymentMethod: "paystack",
+        fulfillmentMethod,
+        paymentMethod,
       };
-      if (cart?.needsShipping) {
+      if (paymentMethod === "momo" || paymentMethod === "bank") {
+        body.paymentNote = paymentNote.trim();
+      }
+      if (fulfillmentMethod === "delivery") {
         body.shipping = shipping;
       }
       const res = await api<{ order: { id: string }; authorizationUrl?: string }>("/api/checkout", {
@@ -173,10 +190,10 @@ export function CheckoutPage() {
     <div className="page container checkout-page">
       <p className="eyebrow page-eyebrow">
         <span className="pulse-dot" />
-        Encrypted Checkout
+        Checkout
       </p>
       <h1>Complete your order</h1>
-      <p className="lede">Orders are protected from confirmation through to download & dispatch.</p>
+      <p className="lede">Add your contact details, choose delivery or pickup, and select a payment method.</p>
 
       <form onSubmit={onSubmit} className="split split-2">
         <div className="stack">
@@ -223,11 +240,50 @@ export function CheckoutPage() {
             </label>
           </section>
 
-          {/* Step 2: Shipping (Only if physical goods) */}
-          {cart.needsShipping && paymentMethod !== "pickup" && (
+          {cart.needsShipping && (
             <section className="panel stack">
               <div className="checkout-step-header">
                 <span className="checkout-step-badge">02</span>
+                <h2 style={{ fontSize: "1.2rem", margin: 0 }}>Delivery or pickup</h2>
+              </div>
+              <div className="stack" style={{ gap: "0.75rem" }}>
+                <label className={`pay-option ${fulfillmentMethod === "delivery" ? "selected" : ""}`}>
+                  <input
+                    type="radio"
+                    name="fulfillment"
+                    checked={fulfillmentMethod === "delivery"}
+                    onChange={() => chooseFulfillment("delivery")}
+                  />
+                  <div>
+                    <strong>Deliver to my address</strong>
+                    <span className="meta payment-detail" style={{ display: "block", marginTop: "0.25rem", fontSize: "0.85rem" }}>
+                      Nationwide delivery. Fee depends on region.
+                    </span>
+                  </div>
+                </label>
+                <label className={`pay-option ${fulfillmentMethod === "pickup" ? "selected" : ""}`}>
+                  <input
+                    type="radio"
+                    name="fulfillment"
+                    checked={fulfillmentMethod === "pickup"}
+                    onChange={() => chooseFulfillment("pickup")}
+                  />
+                  <div>
+                    <strong>Pick up in store</strong>
+                    <span className="meta payment-detail" style={{ display: "block", marginTop: "0.25rem", fontSize: "0.85rem" }}>
+                      {meta?.pickup?.name || "In-store pickup"} · {meta?.pickup?.address || "Location details after order"}
+                    </span>
+                  </div>
+                </label>
+              </div>
+            </section>
+          )}
+
+          {/* Shipping address for delivery orders */}
+          {fulfillmentMethod === "delivery" && (
+            <section className="panel stack">
+              <div className="checkout-step-header">
+                <span className="checkout-step-badge">03</span>
                 <h2 style={{ fontSize: "1.2rem", margin: 0 }}>Ghana Shipping Address</h2>
               </div>
               <div className="form-grid two">
@@ -291,7 +347,7 @@ export function CheckoutPage() {
                 <input
                   value={shipping.landmark}
                   onChange={(e) => setShipping({ ...shipping, landmark: e.target.value })}
-                  placeholder="e.g. Near Shell Station, East Legon"
+                  placeholder={meta?.pickup?.landmark?.trim() || "Landmark or directions for the courier"}
                 />
               </label>
             </section>
@@ -300,16 +356,12 @@ export function CheckoutPage() {
           {/* Step 3: Payment Method */}
           <section className="panel stack">
             <div className="checkout-step-header">
-              <span className="checkout-step-badge">{cart.needsShipping ? "03" : "02"}</span>
+              <span className="checkout-step-badge">{cart.needsShipping ? fulfillmentMethod === "delivery" ? "04" : "03" : "02"}</span>
               <h2 style={{ fontSize: "1.2rem", margin: 0 }}>Select Payment Method</h2>
             </div>
 
-            {!meta?.paystackEnabled && (
-              <div className="alert-banner">Secure checkout is being set up. Please try again shortly.</div>
-            )}
-
             <div className="stack" style={{ gap: "0.75rem" }}>
-              {methods.filter((method) => method.value === "paystack").map((method) => (
+              {methods.map((method) => (
                 <label
                   key={method.value}
                   className={`pay-option ${paymentMethod === method.value ? "selected" : ""}`}
@@ -408,10 +460,12 @@ export function CheckoutPage() {
           <div className="line-item" style={{ borderTop: "1px solid var(--line)", paddingTop: "0.75rem" }}>
             <span>Shipping</span>
             <span>
-              {shippingPesewas
-                ? formatGhs(shippingPesewas)
-                : cart.needsShipping && paymentMethod === "pickup"
+              {fulfillmentMethod === "pickup"
                 ? "Free In-Store Pickup"
+                : shippingPesewas
+                ? formatGhs(shippingPesewas)
+                : cart.needsShipping
+                ? "Delivery fee pending"
                 : (
                   <span className="inline-icon-label">
                     <IconBolt size={12} />
@@ -445,20 +499,22 @@ export function CheckoutPage() {
 
           <button
             className="btn btn-primary checkout-submit"
-            disabled={submitting || !meta?.paystackEnabled}
+            disabled={submitting || (paymentMethod === "paystack" && !meta?.paystackEnabled)}
             type="submit"
             style={{ height: "3.2rem", fontSize: "1.05rem" }}
           >
             {submitting
               ? "Processing Order…"
               : paymentMethod === "paystack"
-              ? "Continue to Paystack Payment →"
-              : "Place Order Now →"}
+              ? "Continue to payment"
+              : paymentMethod === "pay_on_pickup"
+                ? "Place pickup order"
+                : "Place order"}
           </button>
 
           <p className="meta checkout-reassurance inline-icon-label" style={{ fontSize: "0.8rem", textAlign: "center", marginTop: "0.5rem", justifyContent: "center" }}>
             <IconLock size={14} />
-            <span>Bank-grade SSL encryption · Receipts and download keys emailed instantly.</span>
+            <span>Your receipt and order details are sent by email.</span>
           </p>
         </aside>
       </form>

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, asc, count, eq, ilike, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, or } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { categories, products } from "../db/schema.js";
 import { toPublicProduct } from "../lib/inventory.js";
@@ -16,7 +16,7 @@ router.get("/categories", async (_req, res) => {
 });
 
 router.get("/", async (req, res) => {
-  const { category, fulfillment, q, featured, page: pageRaw, limit: limitRaw } = req.query;
+  const { category, fulfillment, q, featured, sort: sortRaw, page: pageRaw, limit: limitRaw } = req.query;
   const conditions = [eq(products.active, true)];
 
   if (typeof category === "string" && category) {
@@ -43,6 +43,16 @@ router.get("/", async (req, res) => {
   const limit = Math.min(48, Math.max(1, Number(limitRaw) || 12));
   const offset = (page - 1) * limit;
   const where = and(...conditions);
+  const sort = typeof sortRaw === "string" && ["price-asc", "price-desc", "name-asc"].includes(sortRaw)
+    ? sortRaw
+    : "featured";
+  const orderBy = sort === "price-asc"
+    ? [asc(products.pricePesewas), asc(products.name)]
+    : sort === "price-desc"
+      ? [desc(products.pricePesewas), asc(products.name)]
+      : sort === "name-asc"
+        ? [asc(products.name)]
+        : [desc(products.featured), asc(products.name)];
 
   const [totalRow] = await db.select({ total: count() }).from(products).where(where);
   const total = totalRow?.total ?? 0;
@@ -55,7 +65,7 @@ router.get("/", async (req, res) => {
     .from(products)
     .leftJoin(categories, eq(products.categoryId, categories.id))
     .where(where)
-    .orderBy(asc(products.name))
+    .orderBy(...orderBy)
     .limit(limit)
     .offset(offset);
 

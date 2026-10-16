@@ -64,6 +64,19 @@ export function isLocalStorage(): boolean {
   return driver() === "local";
 }
 
+/** Local disk uploads are not available on Vercel's read-only filesystem. */
+export function canPersistUploads(): boolean {
+  if (process.env.VERCEL === "1" && isLocalStorage()) return false;
+  return true;
+}
+
+export function uploadsDisabledReason(): string | null {
+  if (!canPersistUploads()) {
+    return "File uploads require STORAGE_DRIVER=s3 (or R2) on Vercel. Set bucket credentials in environment variables.";
+  }
+  return null;
+}
+
 export function getLocalUploadsDir(): string {
   return localDir("uploads");
 }
@@ -104,6 +117,11 @@ export async function putObject(
   body: Buffer,
   contentType?: string,
 ): Promise<{ key: string; publicUrl?: string }> {
+  const disabled = uploadsDisabledReason();
+  if (disabled) {
+    throw new Error(disabled);
+  }
+
   const key = path.basename(filename);
 
   if (driver() === "local") {

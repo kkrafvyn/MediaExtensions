@@ -36,12 +36,17 @@ type Download = {
   maxDownloads: number;
 };
 
+type LoadState = "loading" | "ready" | "error";
+
 export function AccountPage() {
   const { user, refresh, setUser } = useAuth();
   const location = useLocation();
   const [orders, setOrders] = useState<Order[]>([]);
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [downloads, setDownloads] = useState<Download[]>([]);
+  const [ordersState, setOrdersState] = useState<LoadState>("loading");
+  const [repairsState, setRepairsState] = useState<LoadState>("loading");
+  const [downloadsState, setDownloadsState] = useState<LoadState>("loading");
   const [activeTab, setActiveTab] = useState<"downloads" | "orders" | "repairs" | "settings">(
     location.pathname.includes("/repairs") ? "repairs" : "downloads",
   );
@@ -50,6 +55,12 @@ export function AccountPage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
+  const [accountMessage, setAccountMessage] = useState("");
+  const [mfaPassword, setMfaPassword] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaSecret, setMfaSecret] = useState("");
+  const [mfaRecoveryCodes, setMfaRecoveryCodes] = useState<string[]>([]);
+  const [mfaBusy, setMfaBusy] = useState(false);
 
   useEffect(() => {
     if (location.pathname.includes("/repairs")) {
@@ -65,12 +76,38 @@ export function AccountPage() {
 
   useEffect(() => {
     if (!user) return;
-    api<{ orders: Order[] }>("/api/orders/mine").then((d) => setOrders(d.orders || [])).catch(() => setOrders([]));
-    api<{ repairs: Repair[] }>("/api/repairs/mine").then((d) => setRepairs(d.repairs || [])).catch(() => setRepairs([]));
-    api<{ downloads: Download[] }>("/api/orders/mine/downloads")
-      .then((d) => setDownloads(d.downloads || []))
-      .catch(() => setDownloads([]));
+    void loadAccountData();
   }, [user]);
+
+  async function loadAccountData() {
+    setOrdersState("loading");
+    setRepairsState("loading");
+    setDownloadsState("loading");
+    const [orderResult, repairResult, downloadResult] = await Promise.allSettled([
+      api<{ orders: Order[] }>("/api/orders/mine"),
+      api<{ repairs: Repair[] }>("/api/repairs/mine"),
+      api<{ downloads: Download[] }>("/api/orders/mine/downloads"),
+    ]);
+
+    if (orderResult.status === "fulfilled") {
+      setOrders(orderResult.value.orders || []);
+      setOrdersState("ready");
+    } else {
+      setOrdersState("error");
+    }
+    if (repairResult.status === "fulfilled") {
+      setRepairs(repairResult.value.repairs || []);
+      setRepairsState("ready");
+    } else {
+      setRepairsState("error");
+    }
+    if (downloadResult.status === "fulfilled") {
+      setDownloads(downloadResult.value.downloads || []);
+      setDownloadsState("ready");
+    } else {
+      setDownloadsState("error");
+    }
+  }
 
   if (!user) return <Navigate to="/login" replace />;
 
@@ -113,6 +150,56 @@ export function AccountPage() {
     }
   }
 
+  async function resendVerification() {
+    setAccountMessage("");
+    try {
+      await api("/api/auth/email-verification/resend", { method: "POST" });
+      setAccountMessage("If email delivery is configured, a verification link has been sent.");
+    } catch (err) {
+      setAccountMessage(err instanceof Error ? err.message : "Could not send a verification email.");
+    }
+  }
+
+  async function setupMfa(e: React.FormEvent) {
+    e.preventDefault();
+    setMfaBusy(true);
+    setAccountMessage("");
+    try {
+      const result = await api<{ secret: string; otpauthUrl: string }>("/api/auth/mfa/setup", {
+        method: "POST",
+        body: JSON.stringify({ currentPassword: mfaPassword }),
+      });
+      setMfaSecret(result.secret);
+      setAccountMessage(`Add this account to your authenticator: ${result.otpauthUrl}`);
+    } catch (err) {
+      setAccountMessage(err instanceof Error ? err.message : "Could not start MFA setup.");
+    } finally {
+      setMfaBusy(false);
+    }
+  }
+
+  async function updateMfa(e: React.FormEvent, action: "enable" | "disable") {
+    e.preventDefault();
+    setMfaBusy(true);
+    setAccountMessage("");
+    try {
+      const response = await api<{ recoveryCodes?: string[] }>(`/api/auth/mfa/${action}`, {
+        method: "POST",
+        body: JSON.stringify(action === "enable" ? { code: mfaCode } : { currentPassword: mfaPassword, code: mfaCode }),
+      });
+      setMfaSecret("");
+      setMfaRecoveryCodes(response.recoveryCodes ?? []);
+      setMfaCode("");
+      setMfaPassword("");
+      await refresh();
+      setAccountMessage(action === "enable" ? "Admin MFA is enabled." : "Admin MFA is disabled.");
+    } catch (err) {
+      setAccountMessage(err instanceof Error ? err.message : "Could not update MFA.");
+    } finally {
+      setMfaBusy(false);
+    }
+  }
+
   const initials = user.name
     ? user.name
         .split(" ")
@@ -144,7 +231,7 @@ export function AccountPage() {
               height: "3.75rem",
               borderRadius: "50%",
               background: "var(--ink)",
-              color: "white",
+              color: "var(--bg)",
               display: "grid",
               placeItems: "center",
               fontFamily: "var(--font-display)",
@@ -181,6 +268,13 @@ export function AccountPage() {
       </div>
 
       {/* Account Navigation Tabs */}
+      {!user.emailVerifiedAt && (
+        <div className="alert-banner" role="status" style={{ marginBottom: "1rem" }}>
+          Verify your email to make account recovery and order updates more reliable. {" "}
+          <button className="shop-clear-link" type="button" onClick={() => void resendVerification()}>Resend verification email</button>
+        </div>
+      )}
+      {accountMessage && <div className="alert-banner" role="status" style={{ marginBottom: "1rem", overflowWrap: "anywhere" }}>{accountMessage}</div>}
       <div style={{ display: "flex", gap: "0.5rem", borderBottom: "2px solid var(--line)", marginBottom: "2rem" }}>
         <button
           className={`pdp-tab-btn ${activeTab === "downloads" ? "active" : ""}`}
@@ -226,10 +320,16 @@ export function AccountPage() {
                 Instant access to your purchased LUTs, sound packs & licenses.
               </p>
             </div>
-            <span className="badge badge-digital">{downloads.length} active</span>
+            <span className="badge badge-digital">{downloadsState === "ready" ? `${downloads.length} active` : downloadsState === "loading" ? "Loading" : "Unavailable"}</span>
           </div>
 
-          {!downloads.length ? (
+            {downloadsState === "loading" ? (
+              <div className="product-skeleton" style={{ minHeight: "100px" }} />
+            ) : downloadsState === "error" ? (
+              <div className="alert-banner" role="alert">
+                Downloads could not be loaded. <button type="button" className="shop-clear-link" onClick={() => void loadAccountData()}>Retry</button>
+              </div>
+            ) : !downloads.length ? (
             <div className="empty" style={{ padding: "2.5rem" }}>
               <p style={{ fontWeight: 600, marginBottom: "0.25rem" }}>No digital downloads active yet</p>
               <p style={{ fontSize: "0.85rem", color: "var(--muted)", marginBottom: "1rem" }}>
@@ -299,10 +399,16 @@ export function AccountPage() {
                 Review past purchases and print formal PDF receipts.
               </p>
             </div>
-            <span className="badge badge-physical">{orders.length} orders</span>
+            <span className="badge badge-physical">{ordersState === "ready" ? `${orders.length} orders` : ordersState === "loading" ? "Loading" : "Unavailable"}</span>
           </div>
 
-          {!orders.length ? (
+          {ordersState === "loading" ? (
+            <div className="product-skeleton" style={{ minHeight: "100px" }} />
+          ) : ordersState === "error" ? (
+            <div className="alert-banner" role="alert">
+              Orders could not be loaded. <button type="button" className="shop-clear-link" onClick={() => void loadAccountData()}>Retry</button>
+            </div>
+          ) : !orders.length ? (
             <div className="empty" style={{ padding: "2rem" }}>
               <p className="meta">No orders placed yet.</p>
               <Link to="/shop" className="btn btn-dark btn-sm" style={{ marginTop: "0.75rem" }}>
@@ -327,7 +433,7 @@ export function AccountPage() {
                       Order #{o.id.slice(0, 8)} →
                     </Link>
                     <div className="meta" style={{ fontSize: "0.82rem", textTransform: "capitalize", marginTop: "0.2rem" }}>
-                      Status: <span className="status-chip status-paid">{o.status.replaceAll("_", " ")}</span>
+                      Status: <span className={`status-chip ${o.status === "paid" || o.status === "fulfilled" ? "status-paid" : o.status === "cancelled" ? "status-cancelled" : "status-pending"}`}>{o.status.replaceAll("_", " ")}</span>
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
@@ -357,10 +463,16 @@ export function AccountPage() {
                 Live repair status and 90-day warranty service records.
               </p>
             </div>
-            <span className="badge badge-repair">{repairs.length} tickets</span>
+            <span className="badge badge-repair">{repairsState === "ready" ? `${repairs.length} tickets` : repairsState === "loading" ? "Loading" : "Unavailable"}</span>
           </div>
 
-          {!repairs.length ? (
+          {repairsState === "loading" ? (
+            <div className="product-skeleton" style={{ minHeight: "100px" }} />
+          ) : repairsState === "error" ? (
+            <div className="alert-banner" role="alert">
+              Repair tickets could not be loaded. <button type="button" className="shop-clear-link" onClick={() => void loadAccountData()}>Retry</button>
+            </div>
+          ) : !repairs.length ? (
             <div className="empty" style={{ padding: "2rem" }}>
               <p className="meta">No active repair tickets.</p>
               <Link to="/repairs/book" className="btn btn-dark btn-sm" style={{ marginTop: "0.75rem" }}>
@@ -409,6 +521,7 @@ export function AccountPage() {
       )}
 
       {activeTab === "settings" && (
+        <div className="stack">
         <form className="panel stack" onSubmit={saveProfile}>
           <h2 style={{ fontSize: "1.25rem", margin: 0 }}>Account Settings</h2>
           <p className="meta" style={{ margin: 0 }}>
@@ -442,7 +555,9 @@ export function AccountPage() {
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Min 6 characters"
+                placeholder="At least 12 characters"
+                minLength={12}
+                maxLength={128}
               />
             </label>
           </div>
@@ -450,6 +565,36 @@ export function AccountPage() {
             {savingProfile ? "Saving…" : "Save Changes"}
           </button>
         </form>
+        {user.role === "admin" && (
+          <section className="panel stack">
+            <h2 style={{ fontSize: "1.2rem", margin: 0 }}>Admin two-factor authentication</h2>
+            <p className="meta" style={{ margin: 0 }}>Use a TOTP authenticator app. The secret is encrypted before it is stored.</p>
+            {user.mfaEnabled ? (
+              <form className="stack" onSubmit={(e) => void updateMfa(e, "disable")}>
+                <label>Current password<input type="password" required value={mfaPassword} onChange={(e) => setMfaPassword(e.target.value)} /></label>
+                <label>Authenticator code<input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={mfaCode} onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))} /></label>
+                <button className="btn btn-light" type="submit" disabled={mfaBusy}>Disable MFA</button>
+              </form>
+            ) : mfaSecret ? (
+              <form className="stack" onSubmit={(e) => void updateMfa(e, "enable")}>
+                <label>Setup key<input readOnly value={mfaSecret} /></label>
+                <label>Authenticator code<input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={mfaCode} onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))} /></label>
+                <button className="btn btn-primary" type="submit" disabled={mfaBusy}>Verify and enable MFA</button>
+              </form>
+            ) : (
+              <form className="stack" onSubmit={setupMfa}>
+                <label>Current password<input type="password" required value={mfaPassword} onChange={(e) => setMfaPassword(e.target.value)} /></label>
+                <button className="btn btn-primary" type="submit" disabled={mfaBusy}>Set up MFA</button>
+              </form>
+            )}
+            {mfaRecoveryCodes.length > 0 && (
+              <div className="alert-banner" role="status">
+                Save these one-time recovery codes now. They will not be shown again: <strong>{mfaRecoveryCodes.join(" · ")}</strong>
+              </div>
+            )}
+          </section>
+        )}
+        </div>
       )}
     </div>
   );

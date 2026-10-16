@@ -22,13 +22,19 @@ export function ProductPage() {
   useEffect(() => {
     if (!slug) return;
     setProduct(null);
+    setRelated([]);
     setError("");
     api<{ product: Product }>(`/api/products/${slug}`)
       .then((d) => {
         setProduct(d.product);
         setSelectedImage(d.product.images?.[0] || "/images/product-placeholder.svg");
-        // Fetch related products
-        api<{ products: Product[] }>(`/api/products?limit=4`)
+        const relatedParams = new URLSearchParams({ limit: "12", sort: "featured" });
+        if (d.product.category?.slug) {
+          relatedParams.set("category", d.product.category.slug);
+        } else {
+          relatedParams.set("fulfillment", d.product.fulfillment);
+        }
+        api<{ products: Product[] }>(`/api/products?${relatedParams}`)
           .then((res) => setRelated(res.products.filter((p) => p.slug !== slug).slice(0, 3)))
           .catch(() => setRelated([]));
       })
@@ -75,23 +81,23 @@ export function ProductPage() {
     );
   }
 
-  const isDigital = product.fulfillment === "digital";
-  const isPhysical = product.fulfillment === "physical";
+  const hasDigital = product.fulfillment !== "physical";
+  const hasPhysical = product.fulfillment !== "digital";
   const images = product.images?.length ? product.images : ["/images/product-placeholder.svg"];
-  const inStock = isDigital || product.stock > 0;
-  const lowStock = isPhysical && product.stock > 0 && product.stock <= 5;
-  const maxQty = isDigital ? 99 : Math.max(1, product.stock);
+  const inStock = !hasPhysical || product.stock > 0;
+  const lowStock = hasPhysical && product.stock > 0 && product.stock <= 5;
+  const maxQty = hasPhysical ? Math.max(1, product.stock) : 99;
 
   return (
-    <div className="page container">
+    <div className="page container product-page">
       {/* Breadcrumbs */}
-      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "1.75rem", fontSize: "0.88rem", color: "var(--muted)" }}>
+      <nav aria-label="Breadcrumb" className="product-breadcrumb" style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "1.75rem", fontSize: "0.88rem", color: "var(--muted)" }}>
         <Link to="/shop" style={{ color: "var(--muted)" }}>Store</Link>
         <span>/</span>
         <span>{product.category?.name || "Products"}</span>
         <span>/</span>
         <span style={{ color: "var(--ink)", fontWeight: 600 }}>{product.name}</span>
-      </div>
+      </nav>
 
       <div className="product-detail-layout">
         {/* Left Column: Gallery Card */}
@@ -108,6 +114,9 @@ export function ProductPage() {
               {images.map((imgUrl, i) => (
                 <button
                   key={i}
+                  type="button"
+                  aria-label={`Show image ${i + 1} of ${product.name}`}
+                  aria-pressed={selectedImage === imgUrl}
                   onClick={() => setSelectedImage(imgUrl)}
                   style={{
                     width: "64px",
@@ -134,13 +143,9 @@ export function ProductPage() {
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.5rem" }}>
               <span
-                className={`badge ${
-                  isDigital ? "badge-digital" : isPhysical ? "badge-physical" : "badge-both"
-                }`}
+                  className={`badge ${product.fulfillment === "digital" ? "badge-digital" : product.fulfillment === "physical" ? "badge-physical" : "badge-both"}`}
               >
-                <FulfillmentBadge
-                  fulfillment={isDigital ? "digital" : isPhysical ? "physical" : "both"}
-                />
+                  <FulfillmentBadge fulfillment={product.fulfillment} />
               </span>
               <span
                 style={{
@@ -149,7 +154,7 @@ export function ProductPage() {
                   fontWeight: 700,
                 }}
               >
-                {isDigital
+                {!hasPhysical
                   ? "● Instant Digital Delivery"
                   : inStock
                     ? lowStock
@@ -172,51 +177,29 @@ export function ProductPage() {
 
           {/* Key Feature Highlights */}
           <div className="feature-pill-list">
-            {isDigital && (
-              <>
-                <div className="feature-pill-item">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                  <span>Download link sent to your email immediately after payment</span>
-                </div>
-                <div className="feature-pill-item">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                  <span>Commercial license for personal and client projects</span>
-                </div>
-                <div className="feature-pill-item">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                  <span>Compatible with Premiere, DaVinci Resolve, Final Cut, and CapCut</span>
-                </div>
-              </>
+            {hasDigital && (
+              <div className="feature-pill-item">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span>Download access unlocks after payment is confirmed.</span>
+              </div>
             )}
 
-            {isPhysical && (
-              <>
-                <div className="feature-pill-item">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                  <span>Accra pickup available or nationwide delivery in 24–48 hours</span>
-                </div>
-                <div className="feature-pill-item">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                  <span>Genuine hardware inspected before dispatch</span>
-                </div>
-              </>
+            {hasPhysical && (
+              <div className="feature-pill-item">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span>Choose delivery or in-store pickup at checkout. Delivery fees vary by region.</span>
+              </div>
             )}
 
             <div className="feature-pill-item">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <polyline points="20 6 9 17 4 12"></polyline>
               </svg>
-              <span>Pay with MTN MoMo, Telecel Cash, or Card via Paystack</span>
+              <span>Available payment options are shown at checkout.</span>
             </div>
           </div>
 
@@ -269,18 +252,21 @@ export function ProductPage() {
             <div className="pdp-tabs">
               <button
                 className={`pdp-tab-btn ${activeTab === "overview" ? "active" : ""}`}
+                aria-pressed={activeTab === "overview"}
                 onClick={() => setActiveTab("overview")}
               >
-                What's Included
+                Description
               </button>
               <button
                 className={`pdp-tab-btn ${activeTab === "specs" ? "active" : ""}`}
+                aria-pressed={activeTab === "specs"}
                 onClick={() => setActiveTab("specs")}
               >
                 Details
               </button>
               <button
                 className={`pdp-tab-btn ${activeTab === "guarantee" ? "active" : ""}`}
+                aria-pressed={activeTab === "guarantee"}
                 onClick={() => setActiveTab("guarantee")}
               >
                 Returns
@@ -314,7 +300,6 @@ export function ProductPage() {
                 <div>
                   <ul style={{ paddingLeft: "1.2rem", lineHeight: 1.7 }}>
                     <li>See our <Link to="/returns">Returns</Link> and <Link to="/terms">Terms</Link> for warranty and refund details.</li>
-                    <li>Device repairs include a 90-day service guarantee when booked through Media Extensions.</li>
                   </ul>
                 </div>
               )}
@@ -329,9 +314,9 @@ export function ProductPage() {
           <div className="section-head" style={{ marginBottom: "2rem" }}>
             <p className="eyebrow">
               <span className="pulse-dot" />
-              Frequently Paired
+              {product.category?.name ? `More in ${product.category.name}` : "More products"}
             </p>
-            <h2>Complementary Tools for Your Kit</h2>
+            <h2>You may also like</h2>
           </div>
 
           <div className="product-grid">

@@ -4,13 +4,17 @@ import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import type { User } from "../types";
 import { IconMail } from "../components/Icons";
-import { APP_CAROUSEL, BackgroundCarousel } from "../components/BackgroundCarousel";
+import { BrandLogo } from "../components/BrandLogo";
 
 export function LoginPage() {
   const { refresh, setUser } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [recoveryCode, setRecoveryCode] = useState("");
+  const [useRecoveryCode, setUseRecoveryCode] = useState(false);
+  const [mfaRequired, setMfaRequired] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -20,13 +24,27 @@ export function LoginPage() {
     setError("");
     setSubmitting(true);
     try {
-      const res = await api<{ user: User }>("/api/auth/login", {
+      const res = await api<{ user?: User; mfaRequired?: boolean }>("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          ...(mfaRequired ? useRecoveryCode ? { recoveryCode } : { totpCode } : {}),
+        }),
       });
+      if (res.mfaRequired) {
+        setMfaRequired(true);
+        return;
+      }
+      if (!res.user) throw new Error("Sign in could not be completed");
+      setMfaRequired(false);
       setUser(res.user);
       await refresh();
-      if (res.user.role === "admin" || res.user.role === "manager") {
+      if (
+        res.user.role === "admin" ||
+        res.user.role === "manager" ||
+        res.user.role === "technician"
+      ) {
         navigate("/staff");
       } else {
         navigate("/account");
@@ -40,13 +58,22 @@ export function LoginPage() {
 
   return (
     <div className="auth-shell">
-      <BackgroundCarousel slides={APP_CAROUSEL} fixed className="auth-carousel" />
       <div className="page container auth-panel" style={{ maxWidth: 460 }}>
-        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.75rem", background: "var(--bg-alt)", padding: "0.35rem", borderRadius: "var(--radius-full)" }}>
+        <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
+          <Link to="/" style={{ display: "inline-block", marginBottom: "1rem" }} aria-label="Home">
+            <BrandLogo size={52} badgeOnly />
+          </Link>
+          <h1 style={{ fontSize: "1.9rem", letterSpacing: "-0.035em", margin: "0 0 0.4rem" }}>Sign in</h1>
+          <p className="lede" style={{ margin: "0 auto", fontSize: "0.95rem", color: "var(--muted)", maxWidth: "340px" }}>
+            Access downloads, active orders, and repair tickets.
+          </p>
+        </div>
+
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", background: "var(--surface-hover)", padding: "0.35rem", borderRadius: "var(--radius-full)", border: "1px solid var(--line)" }}>
           <Link
             to="/login"
             className="btn btn-sm"
-            style={{ flex: 1, background: "var(--surface)", color: "var(--ink)", borderRadius: "var(--radius-full)", boxShadow: "var(--shadow-xs)" }}
+            style={{ flex: 1, background: "var(--surface)", color: "var(--ink)", borderRadius: "var(--radius-full)", boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}
           >
             Sign In
           </Link>
@@ -59,14 +86,12 @@ export function LoginPage() {
           </Link>
         </div>
 
-        <h1>Welcome back</h1>
-        <p className="lede">Sign in to manage downloads, active orders, and repair tickets.</p>
-
         <form className="panel stack" onSubmit={onSubmit}>
         <label>
           Email Address
           <input
             type="email"
+            autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="name@email.com"
@@ -78,6 +103,7 @@ export function LoginPage() {
           <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
             <input
               type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
@@ -98,6 +124,29 @@ export function LoginPage() {
             </button>
           </div>
         </label>
+
+        {mfaRequired && (
+          <label>
+            {useRecoveryCode ? "Admin recovery code" : "Admin authenticator code"}
+            <input
+              inputMode={useRecoveryCode ? "text" : "numeric"}
+              autoComplete={useRecoveryCode ? "off" : "one-time-code"}
+              pattern={useRecoveryCode ? "[A-Fa-f0-9]{8}-?[A-Fa-f0-9]{8}" : "[0-9]{6}"}
+              maxLength={useRecoveryCode ? 17 : 6}
+              value={useRecoveryCode ? recoveryCode : totpCode}
+              onChange={(e) => useRecoveryCode
+                ? setRecoveryCode(e.target.value.replace(/[^a-fA-F0-9-]/g, "").slice(0, 17))
+                : setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder={useRecoveryCode ? "16-character code" : "6-digit code"}
+              required
+            />
+          </label>
+        )}
+        {mfaRequired && (
+          <button type="button" className="shop-clear-link" onClick={() => setUseRecoveryCode((value) => !value)}>
+            {useRecoveryCode ? "Use authenticator code instead" : "Use a recovery code"}
+          </button>
+        )}
 
         {error && <div className="alert-banner">{error}</div>}
 
@@ -151,9 +200,18 @@ export function RegisterPage() {
 
   return (
     <div className="auth-shell">
-      <BackgroundCarousel slides={APP_CAROUSEL} fixed className="auth-carousel" />
       <div className="page container auth-panel" style={{ maxWidth: 460 }}>
-        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.75rem", background: "var(--bg-alt)", padding: "0.35rem", borderRadius: "var(--radius-full)" }}>
+        <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
+          <Link to="/" style={{ display: "inline-block", marginBottom: "1rem" }} aria-label="Home">
+            <BrandLogo size={52} badgeOnly />
+          </Link>
+          <h1 style={{ fontSize: "1.9rem", letterSpacing: "-0.035em", margin: "0 0 0.4rem" }}>Create account</h1>
+          <p className="lede" style={{ margin: "0 auto", fontSize: "0.95rem", color: "var(--muted)", maxWidth: "340px" }}>
+            Access your downloads, track repairs, and manage your orders.
+          </p>
+        </div>
+
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", background: "var(--surface-hover)", padding: "0.35rem", borderRadius: "var(--radius-full)", border: "1px solid var(--line)" }}>
           <Link
             to="/login"
             className="btn btn-sm"
@@ -164,14 +222,11 @@ export function RegisterPage() {
           <Link
             to="/register"
             className="btn btn-sm"
-            style={{ flex: 1, background: "var(--surface)", color: "var(--ink)", borderRadius: "var(--radius-full)", boxShadow: "var(--shadow-xs)" }}
+            style={{ flex: 1, background: "var(--surface)", color: "var(--ink)", borderRadius: "var(--radius-full)", boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}
           >
             Create Account
           </Link>
         </div>
-
-        <h1>Create an account</h1>
-        <p className="lede">Unlock your digital downloads vault, repair tracking, and fast checkout.</p>
 
         <form className="panel stack" onSubmit={onSubmit}>
         <label>
@@ -187,6 +242,7 @@ export function RegisterPage() {
           Email Address
           <input
             type="email"
+            autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="name@email.com"
@@ -210,9 +266,10 @@ export function RegisterPage() {
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Minimum 6 characters"
+              placeholder="Minimum 12 characters"
+              autoComplete="new-password"
               required
-              minLength={6}
+              minLength={12}
             />
             <button
               type="button"
@@ -264,10 +321,16 @@ export function ForgotPasswordPage() {
 
   return (
     <div className="auth-shell">
-      <BackgroundCarousel slides={APP_CAROUSEL} fixed className="auth-carousel" />
       <div className="page container auth-panel" style={{ maxWidth: 460 }}>
-        <h1>Reset password</h1>
-        <p className="lede">Enter your registered email address to receive password reset instructions.</p>
+        <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
+          <Link to="/" style={{ display: "inline-block", marginBottom: "1rem" }} aria-label="Home">
+            <BrandLogo size={52} badgeOnly />
+          </Link>
+          <h1 style={{ fontSize: "1.9rem", letterSpacing: "-0.035em", margin: "0 0 0.4rem" }}>Reset password</h1>
+          <p className="lede" style={{ margin: "0 auto", fontSize: "0.95rem", color: "var(--muted)", maxWidth: "340px" }}>
+            Enter your registered email address to receive password reset instructions.
+          </p>
+        </div>
 
         {submitted ? (
           <div className="panel stack" style={{ textAlign: "center", padding: "2.5rem 1.5rem" }}>
@@ -288,6 +351,7 @@ export function ForgotPasswordPage() {
               Email Address
               <input
                 type="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@email.com"
@@ -338,21 +402,28 @@ export function ResetPasswordPage() {
 
   return (
     <div className="auth-shell">
-      <BackgroundCarousel slides={APP_CAROUSEL} fixed className="auth-carousel" />
       <div className="page container auth-panel" style={{ maxWidth: 460 }}>
-        <h1>Set new password</h1>
-        <p className="lede">Choose a strong password with at least 6 characters.</p>
+        <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
+          <Link to="/" style={{ display: "inline-block", marginBottom: "1rem" }} aria-label="Home">
+            <BrandLogo size={52} badgeOnly />
+          </Link>
+          <h1 style={{ fontSize: "1.9rem", letterSpacing: "-0.035em", margin: "0 0 0.4rem" }}>Set new password</h1>
+          <p className="lede" style={{ margin: "0 auto", fontSize: "0.95rem", color: "var(--muted)", maxWidth: "340px" }}>
+            Choose a password with at least 12 characters.
+          </p>
+        </div>
 
         <form className="panel stack" onSubmit={onSubmit}>
           <label>
             New Password
             <input
               type="password"
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
-              minLength={6}
+              minLength={12}
             />
           </label>
 
@@ -361,6 +432,45 @@ export function ResetPasswordPage() {
           <button className="btn btn-primary" type="submit" disabled={submitting} style={{ height: "3.2rem" }}>
             {submitting ? "Updating Password…" : "Update Password →"}
           </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export function VerifyEmailPage() {
+  const [params] = useSearchParams();
+  const token = params.get("token") ?? "";
+  const [state, setState] = useState<"ready" | "verified" | "error">(token ? "ready" : "error");
+  const [message, setMessage] = useState(token ? "Confirm to verify your email address." : "This verification link is invalid or incomplete.");
+
+  async function verifyEmail(e: FormEvent) {
+    e.preventDefault();
+    if (!token) return;
+    api<{ ok: boolean; email: string }>("/api/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    })
+      .then((result) => {
+        setState("verified");
+        setMessage(`Email verified for ${result.email}.`);
+      })
+      .catch((err) => {
+        setState("error");
+        setMessage(err instanceof Error ? err.message : "This verification link is invalid or expired.");
+      });
+  }
+
+  return (
+    <div className="auth-shell">
+      <div className="page container auth-panel" style={{ maxWidth: 460 }}>
+        <form className="panel stack" onSubmit={verifyEmail} role={state === "error" ? "alert" : "status"}>
+          <h1 style={{ fontSize: "1.6rem", margin: 0 }}>Email verification</h1>
+          <p className="meta">{message}</p>
+          {state === "ready" && <button className="btn btn-primary" type="submit">Verify email</button>}
+          <Link className="btn btn-primary" to={state === "verified" ? "/account" : "/login"}>
+            {state === "verified" ? "Continue to account" : "Return to sign in"}
+          </Link>
         </form>
       </div>
     </div>

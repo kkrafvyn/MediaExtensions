@@ -56,7 +56,6 @@ export function ProductCard({ product, onQuickView, onOpenCart, style }: Product
             >
               <FulfillmentBadge fulfillment={product.fulfillment} variant="short" iconSize={11} />
             </span>
-            {product.featured && <span className="badge badge-featured">Featured</span>}
             {outOfStock && <span className="badge badge-sold-out">Sold out</span>}
           </div>
           <img
@@ -117,7 +116,7 @@ export function ProductCard({ product, onQuickView, onOpenCart, style }: Product
                   <path d="M3 6h18" />
                   <path d="M16 10a4 4 0 0 1-8 0" />
                 </svg>
-                Add
+                Add to bag
               </>
             )}
           </button>

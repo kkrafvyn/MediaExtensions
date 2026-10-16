@@ -2,6 +2,9 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, formatGhs } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { useSiteMeta } from "../context/SiteMetaContext";
+import { REPAIR_TRACK_STEPS, repairTimelineIndex } from "../lib/trackingSteps";
+import { whatsappUrl } from "../lib/whatsapp";
 import type { RepairService } from "../types";
 import {
   IconBolt,
@@ -29,11 +32,13 @@ export function RepairsPage() {
       <header className="repairs-hero">
         <div className="container repairs-hero-inner">
           <p className="eyebrow page-eyebrow">
-            Media Extensions · Accra
+            Media Extensions · Device repairs
           </p>
-          <h1>Device repairs and diagnostics</h1>
-          <p className="lede">
-            Screen replacements, battery upgrades, liquid damage treatment, and logic board repair. Book online or drop off at our studio.
+          <h1 style={{ fontSize: "clamp(2.4rem, 5.5vw, 3.75rem)", letterSpacing: "-0.04em" }}>
+            Device repairs in Koforidua.
+          </h1>
+          <p className="lede" style={{ maxWidth: "38rem" }}>
+            Screen replacements, battery servicing, liquid damage assessment, and board repairs. Choose a service or book diagnostics to get started.
           </p>
         </div>
       </header>
@@ -44,8 +49,10 @@ export function RepairsPage() {
       <div
         className="panel"
         style={{
-          background: "rgba(18, 24, 38, 0.75)",
-          color: "white",
+          background: "var(--surface)",
+          backdropFilter: "blur(24px) saturate(180%)",
+          WebkitBackdropFilter: "blur(24px) saturate(180%)",
+          color: "var(--ink)",
           padding: "1.75rem 2rem",
           borderRadius: "var(--radius-lg)",
           display: "flex",
@@ -54,14 +61,15 @@ export function RepairsPage() {
           flexWrap: "wrap",
           gap: "1.25rem",
           marginBottom: "3rem",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
+          border: "1px solid var(--line)",
+          boxShadow: "0 12px 32px -8px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
         }}
       >
         <div>
-          <span className="badge badge-repair inline-icon-label" style={{ marginBottom: "0.4rem" }}>
+          <span className="badge badge-digital inline-icon-label" style={{ marginBottom: "0.4rem" }}>
             <IconBolt size={12} /> IMEI Tool
           </span>
-          <h3 style={{ color: "white", fontSize: "1.25rem", margin: "0.2rem 0 0.35rem" }}>
+          <h3 style={{ color: "var(--ink)", fontSize: "1.25rem", margin: "0.2rem 0 0.35rem" }}>
             Validate IMEI Format
           </h3>
           <p style={{ color: "var(--muted)", margin: 0, fontSize: "0.88rem", maxWidth: "520px" }}>
@@ -76,8 +84,8 @@ export function RepairsPage() {
       </div>
 
       <div className="section-head">
-        <h2>Available Repair Services</h2>
-        <p>Select a specialized service or book general diagnostics if you're unsure.</p>
+        <h2>Choose a repair service</h2>
+        <p>Not sure what’s wrong? Book a diagnostic assessment.</p>
       </div>
 
       {loading ? (
@@ -110,7 +118,7 @@ export function RepairsPage() {
         </div>
       ) : (
         <div className="empty">
-          <p>No repair services listed yet. An admin can add them in Staff → Repair services.</p>
+          <p>No repair services are listed yet. Book a diagnostic and we will confirm pricing after inspection.</p>
           <Link to="/repairs/book" className="btn btn-primary" style={{ marginTop: "1rem" }}>
             Request a diagnosis
           </Link>
@@ -133,13 +141,16 @@ export function RepairBookPage() {
   const navigate = useNavigate();
   const [services, setServices] = useState<RepairService[]>([]);
   const [serviceId, setServiceId] = useState(params.get("service") ?? "");
-  const [deviceCategory, setDeviceCategory] = useState("iPhone");
+  const [deviceCategory, setDeviceCategory] = useState("");
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [phone, setPhone] = useState(user?.phone ?? "+233 ");
-  const [deviceBrand, setDeviceBrand] = useState("Apple");
+  const [deviceBrand, setDeviceBrand] = useState("");
   const [deviceModel, setDeviceModel] = useState("");
   const [issue, setIssue] = useState(params.get("issue") ?? "");
+  const issueParam = params.get("issue") ?? "";
+  const imeiFromIssue = issueParam.match(/IMEI Check:\s*(\d{15})/i)?.[1] ?? "";
+  const [imei, setImei] = useState(imeiFromIssue);
   const [dropOffNotes, setDropOffNotes] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -152,9 +163,7 @@ export function RepairBookPage() {
 
   function handleCategorySelect(cat: string, defaultBrand: string) {
     setDeviceCategory(cat);
-    if (defaultBrand) {
-      setDeviceBrand(defaultBrand);
-    }
+    setDeviceBrand(defaultBrand);
   }
 
   function appendIssueTag(tag: string) {
@@ -179,6 +188,7 @@ export function RepairBookPage() {
           deviceModel,
           issue,
           dropOffNotes,
+          imei: imei.replace(/\D/g, "").length === 15 ? imei.replace(/\D/g, "") : undefined,
           paymentMethod: "pickup",
         }),
       });
@@ -203,8 +213,8 @@ export function RepairBookPage() {
 
       <form className="panel stack" onSubmit={onSubmit}>
         <div>
-          <label style={{ marginBottom: "0.6rem" }}>Select Device Category</label>
-          <div className="device-select-grid">
+          <div id="device-category-label" style={{ marginBottom: "0.6rem", fontWeight: 600 }}>Select Device Category</div>
+          <div className="device-select-grid" role="group" aria-labelledby="device-category-label">
             {[
               { label: "iPhone", brand: "Apple", Icon: IconPhone },
               { label: "Samsung", brand: "Samsung", Icon: IconPhone },
@@ -213,14 +223,16 @@ export function RepairBookPage() {
               { label: "Camera / Gear", brand: "Sony", Icon: IconCamera },
               { label: "Other Device", brand: "", Icon: IconWrench },
             ].map((d) => (
-              <div
+              <button
                 key={d.label}
+                type="button"
                 className={`device-chip ${deviceCategory === d.label ? "selected" : ""}`}
+                aria-pressed={deviceCategory === d.label}
                 onClick={() => handleCategorySelect(d.label, d.brand)}
               >
                 <d.Icon size={22} />
                 <span>{d.label}</span>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -267,7 +279,7 @@ export function RepairBookPage() {
               onChange={(e) => setIssue(e.target.value)}
               placeholder="Describe what happened (e.g. cracked display, battery drains fast, water spill)"
               required
-              minLength={4}
+              minLength={5}
             />
           </label>
 
@@ -316,6 +328,18 @@ export function RepairBookPage() {
         </label>
 
         <label>
+          Device IMEI <span className="meta">(optional, 15 digits)</span>
+          <input
+            inputMode="numeric"
+            pattern="\d{15}"
+            maxLength={15}
+            value={imei}
+            onChange={(e) => setImei(e.target.value.replace(/\D/g, "").slice(0, 15))}
+            placeholder="From Settings or *#06#"
+          />
+        </label>
+
+        <label>
           Drop-off / Courier Notes <span className="meta">(optional)</span>
           <textarea
             rows={2}
@@ -339,20 +363,24 @@ type RepairDetail = {
   id: string;
   status: string;
   paymentStatus: string;
+  quoteDecision?: string;
   name: string;
   email: string;
   phone: string;
   deviceBrand: string;
   deviceModel: string;
   issue: string;
+  imei?: string | null;
   quotePesewas: number | null;
   service?: { name: string } | null;
 };
 
 export function RepairStatusPage() {
   const { id } = useParams();
+  const { meta } = useSiteMeta();
   const [repair, setRepair] = useState<RepairDetail | null>(null);
   const [error, setError] = useState("");
+  const [quoteBusy, setQuoteBusy] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -380,11 +408,9 @@ export function RepairStatusPage() {
     );
   }
 
-  const steps = ["booked", "received", "in_progress", "ready", "completed"];
-  const currentStepIdx = steps.indexOf(repair.status.toLowerCase());
-  const activeIdx = currentStepIdx >= 0 ? currentStepIdx : 0;
-
-  const waText = encodeURIComponent(`Hello Media Extensions, I am checking the status of my repair ticket #${repair.id.slice(0, 8)} (${repair.deviceBrand} ${repair.deviceModel}).`);
+  const repairTrack = repairTimelineIndex(repair.status);
+  const waMessage = `Hello Media Extensions, I am checking the status of my repair ticket #${repair.id.slice(0, 8)} (${repair.deviceBrand} ${repair.deviceModel}).`;
+  const waHref = whatsappUrl(meta?.storeWhatsApp ?? meta?.store?.whatsapp, waMessage);
 
   return (
     <div className="page container" style={{ maxWidth: 700 }}>
@@ -400,25 +426,23 @@ export function RepairStatusPage() {
       {/* Progress Timeline */}
       <div className="panel" style={{ marginBottom: "1.75rem" }}>
         <h4 style={{ marginBottom: "1.5rem" }}>Live Repair Stage</h4>
+        {repairTrack.cancelled && (
+          <p className="alert-banner" style={{ marginBottom: "1rem" }}>
+            This repair ticket was cancelled.
+          </p>
+        )}
         <div className="tracking-timeline">
-          {[
-            { label: "Booked", step: 0 },
-            { label: "Received", step: 1 },
-            { label: "In Repair", step: 2 },
-            { label: "Ready", step: 3 },
-            { label: "Collected", step: 4 },
-          ].map((item) => {
-            const isCompleted = activeIdx > item.step;
-            const isCurrent = activeIdx === item.step;
+          {REPAIR_TRACK_STEPS.map((item, step) => {
+            const activeIdx = repairTrack.cancelled ? -1 : repairTrack.index;
+            const isCompleted = activeIdx > step;
+            const isCurrent = activeIdx === step;
             return (
               <div
-                key={item.label}
-                className={`timeline-step ${isCompleted ? "completed" : ""} ${
-                  isCurrent ? "current" : ""
-                }`}
+                key={item.key}
+                className={`timeline-step ${isCompleted ? "completed" : ""} ${isCurrent ? "current" : ""}`}
               >
                 <div className="timeline-icon">
-                  {isCompleted ? <IconCheck size={14} /> : item.step + 1}
+                  {isCompleted ? <IconCheck size={14} /> : step + 1}
                 </div>
                 <span className="timeline-label">{item.label}</span>
               </div>
@@ -444,6 +468,12 @@ export function RepairStatusPage() {
             {repair.deviceBrand} {repair.deviceModel}
           </span>
         </div>
+        {repair.imei && (
+          <div className="line-item">
+            <span>IMEI</span>
+            <span>{repair.imei}</span>
+          </div>
+        )}
         <div className="line-item">
           <span>Reported Issue</span>
           <span style={{ maxWidth: "340px", textAlign: "right" }}>{repair.issue}</span>
@@ -458,6 +488,59 @@ export function RepairStatusPage() {
           <span>Payment Status</span>
           <span className="status-chip">{repair.paymentStatus}</span>
         </div>
+
+        {repair.status === "quoted" && repair.quoteDecision === "pending" && repair.quotePesewas != null && (
+          <div className="panel stack" style={{ marginTop: "0.5rem" }}>
+            <p className="meta" style={{ margin: 0 }}>
+              Approve this quote so we can start billable repair work, or decline to cancel the ticket.
+            </p>
+            <div className="cta-row">
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={quoteBusy}
+                onClick={async () => {
+                  setQuoteBusy(true);
+                  try {
+                    const res = await api<{ repair: RepairDetail }>(`/api/repairs/${repair.id}/quote-decision`, {
+                      method: "POST",
+                      body: JSON.stringify({ decision: "approved" }),
+                    });
+                    setRepair(res.repair);
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : "Could not save decision");
+                  } finally {
+                    setQuoteBusy(false);
+                  }
+                }}
+              >
+                Approve quote
+              </button>
+              <button
+                type="button"
+                className="btn btn-light"
+                disabled={quoteBusy}
+                onClick={async () => {
+                  if (!window.confirm("Decline this quote and cancel the repair ticket?")) return;
+                  setQuoteBusy(true);
+                  try {
+                    const res = await api<{ repair: RepairDetail }>(`/api/repairs/${repair.id}/quote-decision`, {
+                      method: "POST",
+                      body: JSON.stringify({ decision: "declined" }),
+                    });
+                    setRepair(res.repair);
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : "Could not save decision");
+                  } finally {
+                    setQuoteBusy(false);
+                  }
+                }}
+              >
+                Decline quote
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* WhatsApp Direct Support */}
         <div
@@ -478,15 +561,19 @@ export function RepairStatusPage() {
             <strong style={{ color: "var(--emerald)", display: "block" }}>Need quick assistance?</strong>
             <span style={{ fontSize: "0.85rem", color: "var(--ink)" }}>Contact our technician if you need help with your repair ticket.</span>
           </div>
-          <a
-            href={`https://wa.me/233240000000?text=${waText}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-sm inline-icon-label"
-            style={{ background: "#25D366", color: "white", borderRadius: "var(--radius-full)" }}
-          >
-            <IconChat size={16} /> Chat on WhatsApp
-          </a>
+          {waHref ? (
+            <a
+              href={waHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-sm inline-icon-label"
+              style={{ background: "#25D366", color: "#072514", borderRadius: "var(--radius-full)" }}
+            >
+              <IconChat size={16} /> Chat on WhatsApp
+            </a>
+          ) : (
+            <span className="meta">WhatsApp contact is not configured yet.</span>
+          )}
         </div>
 
         <div className="cta-row" style={{ marginTop: "1rem" }}>

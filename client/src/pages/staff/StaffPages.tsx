@@ -1,13 +1,21 @@
 import { Fragment, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, NavLink, Outlet } from "react-router-dom";
-import { api, apiUpload, formatGhs } from "../lib/api";
-import { useAuth } from "../context/AuthContext";
-import type { Category, Product, StaffAnalytics } from "../types";
+import { ApiError, api, apiUpload, formatGhs } from "../../lib/api";
+import { useAuth } from "../../context/AuthContext";
+import { BrandLogo } from "../../components/BrandLogo";
+import type { Category, Product, StaffAnalytics } from "../../types";
+import { GhsInput } from "./GhsInput";
+import { StaffListControls } from "./StaffListControls";
+import { staffListPath } from "./useStaffResource";
+
+function isStaffRole(role: string | undefined) {
+  return role === "admin" || role === "manager" || role === "technician";
+}
 
 function StaffGuard({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="page container">Loading…</div>;
-  if (!user || (user.role !== "admin" && user.role !== "manager")) {
+  if (!user || !isStaffRole(user.role)) {
     return <Navigate to="/login" replace />;
   }
   return <>{children}</>;
@@ -15,16 +23,26 @@ function StaffGuard({ children }: { children: ReactNode }) {
 
 export function StaffLayout() {
   const { user } = useAuth();
+  const isTechnician = user?.role === "technician";
+  const isAdmin = user?.role === "admin";
+  const isManager = user?.role === "manager";
+  const catalogStaff = isAdmin || isManager;
   return (
     <StaffGuard>
       <div className="page container staff-shell">
         <div className="staff-header">
-          <div>
-            <p className="eyebrow page-eyebrow">Staff Console</p>
-            <h1>Control center</h1>
-            <p className="lede staff-lede">
-              Hello {user?.name}. Manage the storefront, orders, repairs, and store settings from here.
-            </p>
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+            <BrandLogo size={44} badgeOnly />
+            <div>
+              <p className="eyebrow page-eyebrow">Staff Console · Media Extensions</p>
+              <h1>Control center</h1>
+              <p className="lede staff-lede" style={{ marginBottom: 0 }}>
+                Hello {user?.name}.{" "}
+                {isTechnician
+                  ? "Update repair tickets and message customers from here."
+                  : "Manage the storefront, orders, repairs, and store settings from here."}
+              </p>
+            </div>
           </div>
           <Link to="/" className="btn btn-light btn-sm">
             View storefront
@@ -37,10 +55,17 @@ export function StaffLayout() {
             <NavLink to="/staff" end className={({ isActive }) => `staff-nav-link ${isActive ? "active" : ""}`}>
               Dashboard
             </NavLink>
-            <NavLink to="/staff/orders" className={({ isActive }) => `staff-nav-link ${isActive ? "active" : ""}`}>
-              Orders
-            </NavLink>
-            {user?.role === "admin" && (
+            {!isTechnician && (
+              <>
+                <NavLink to="/staff/orders" className={({ isActive }) => `staff-nav-link ${isActive ? "active" : ""}`}>
+                  Orders
+                </NavLink>
+                <NavLink to="/staff/returns" className={({ isActive }) => `staff-nav-link ${isActive ? "active" : ""}`}>
+                  Returns
+                </NavLink>
+              </>
+            )}
+            {isAdmin && (
               <NavLink to="/staff/pos" className={({ isActive }) => `staff-nav-link ${isActive ? "active" : ""}`}>
                 In-store POS
               </NavLink>
@@ -52,6 +77,7 @@ export function StaffLayout() {
               Messages
             </NavLink>
           </div>
+          {catalogStaff && (
           <div className="staff-nav-group">
             <span className="staff-nav-label">Catalog</span>
             <NavLink to="/staff/products" className={({ isActive }) => `staff-nav-link ${isActive ? "active" : ""}`}>
@@ -60,23 +86,31 @@ export function StaffLayout() {
             <NavLink to="/staff/services" className={({ isActive }) => `staff-nav-link ${isActive ? "active" : ""}`}>
               Repair services
             </NavLink>
-            {user?.role === "admin" && (
+            {isAdmin && (
               <NavLink to="/staff/categories" className={({ isActive }) => `staff-nav-link ${isActive ? "active" : ""}`}>
                 Categories
               </NavLink>
             )}
           </div>
+          )}
+          {!isTechnician && (
           <div className="staff-nav-group">
             <span className="staff-nav-label">Admin</span>
             <NavLink to="/staff/settings" className={({ isActive }) => `staff-nav-link ${isActive ? "active" : ""}`}>
               Store settings
             </NavLink>
-            {user?.role === "admin" && (
+            {isAdmin && (
               <NavLink to="/staff/users" className={({ isActive }) => `staff-nav-link ${isActive ? "active" : ""}`}>
                 Users
               </NavLink>
             )}
+            {isAdmin && (
+              <NavLink to="/staff/audit" className={({ isActive }) => `staff-nav-link ${isActive ? "active" : ""}`}>
+                Audit log
+              </NavLink>
+            )}
           </div>
+          )}
         </nav>
         <Outlet />
       </div>
@@ -92,15 +126,36 @@ export function StaffDashboard() {
     recentRepairs?: Array<{ id: string; name: string; status: string; deviceBrand: string; deviceModel: string }>;
   } | null>(null);
   const [analytics, setAnalytics] = useState<StaffAnalytics | null>(null);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [dashboardError, setDashboardError] = useState("");
+
+  async function loadDashboard() {
+    setDashboardLoading(true);
+    setDashboardError("");
+    try {
+      const result = await api<typeof dash>("/api/staff/dashboard");
+      setDash(result);
+      api<StaffAnalytics>("/api/staff/analytics").then(setAnalytics).catch(() => setAnalytics(null));
+    } catch (err) {
+      setDashboardError(err instanceof Error ? err.message : "Could not load the staff dashboard.");
+    } finally {
+      setDashboardLoading(false);
+    }
+  }
 
   useEffect(() => {
-    api<typeof dash>("/api/staff/dashboard").then(setDash);
-    api<StaffAnalytics>("/api/staff/analytics")
-      .then(setAnalytics)
-      .catch(() => setAnalytics(null));
+    void loadDashboard();
   }, []);
 
-  if (!dash) return <p className="meta">Loading…</p>;
+  if (dashboardLoading && !dash) return <p className="meta" role="status">Loading dashboard…</p>;
+  if (dashboardError && !dash) {
+    return (
+      <div className="alert-banner" role="alert">
+        {dashboardError} <button className="shop-clear-link" type="button" onClick={() => void loadDashboard()}>Retry</button>
+      </div>
+    );
+  }
+  if (!dash) return null;
 
   const revenue =
     analytics?.paidRevenuePesewas ?? analytics?.revenuePesewas ?? null;
@@ -109,8 +164,20 @@ export function StaffDashboard() {
   const repairCounts = analytics?.repairStatusCounts ?? {};
   const topProducts = analytics?.topProducts ?? [];
 
+  const smtpConfigured = (analytics as { smtpConfigured?: boolean } | null)?.smtpConfigured;
+
   return (
     <div className="stack">
+      {smtpConfigured === false && (
+        <div className="alert-banner" role="status">
+          SMTP is not configured. Password reset and verification emails will not send until you set SMTP env vars on the server.
+        </div>
+      )}
+      {dashboardError && (
+        <div className="alert-banner" role="alert">
+          {dashboardError} <button className="shop-clear-link" type="button" onClick={() => void loadDashboard()}>Retry</button>
+        </div>
+      )}
       {lowStock.length > 0 && (
         <div className="alert-banner" role="alert">
           <strong>Low stock:</strong>{" "}
@@ -470,6 +537,9 @@ function StaffPosRepair() {
 }
 
 export function StaffOrders() {
+  const { user } = useAuth();
+  if (user?.role === "technician") return <Navigate to="/staff/repairs" replace />;
+
   type Payment = { id: string; method: string; amountPesewas: number; reference: string | null; receivedAt: string; recordedBy?: { name: string } | null };
   type StaffOrder = {
     id: string;
@@ -477,9 +547,15 @@ export function StaffOrders() {
     email: string;
     phone?: string | null;
     status: string;
+    fulfillmentMethod?: string;
+    fulfillmentStatus?: string;
     paymentMethod: string;
+    paymentNote?: string | null;
     totalPesewas: number;
     shippingPesewas?: number;
+    trackingCarrier?: string | null;
+    trackingNumber?: string | null;
+    trackingUrl?: string | null;
     createdAt?: string;
     shipping?: { fullName?: string; street?: string; city?: string; region?: string; phone?: string } | null;
     items?: Array<{ name: string; quantity: number; unitPricePesewas: number; fulfillment: string }>;
@@ -490,15 +566,24 @@ export function StaffOrders() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [recordingFor, setRecordingFor] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState("");
+  const [fulfillmentError, setFulfillmentError] = useState("");
   const [payment, setPayment] = useState({ method: "cash", amount: "", reference: "", notes: "" });
+  const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const limit = 25;
 
-  async function load() {
-    const d = await api<{ orders: StaffOrder[] }>("/api/staff/orders");
+  async function load(nextPage = page, query = q) {
+    const d = await api<{ orders: StaffOrder[]; total: number; page: number }>(
+      staffListPath("/api/staff/orders", query, nextPage, limit),
+    );
     setOrders(d.orders);
+    setTotal(d.total);
+    setPage(d.page);
   }
 
   useEffect(() => {
-    load();
+    void load(1, q);
   }, []);
 
   async function setStatus(id: string, status: string) {
@@ -519,7 +604,7 @@ export function StaffOrders() {
     setPayment({
       method: order.paymentMethod === "momo" || order.paymentMethod === "bank" ? order.paymentMethod : "cash",
       amount: String(Math.max(0, (order.totalPesewas - paid) / 100)),
-      reference: "",
+      reference: order.paymentNote ?? "",
       notes: "",
     });
     setPaymentError("");
@@ -550,6 +635,26 @@ export function StaffOrders() {
     }
   }
 
+  async function saveFulfillment(e: FormEvent<HTMLFormElement>, order: StaffOrder) {
+    e.preventDefault();
+    const values = new FormData(e.currentTarget);
+    setFulfillmentError("");
+    try {
+      await api(`/api/staff/orders/${order.id}/fulfillment`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          fulfillmentStatus: values.get("fulfillmentStatus"),
+          trackingCarrier: values.get("trackingCarrier") || null,
+          trackingNumber: values.get("trackingNumber") || null,
+          trackingUrl: values.get("trackingUrl") || null,
+        }),
+      });
+      await load();
+    } catch (err) {
+      setFulfillmentError(err instanceof Error ? err.message : "Could not update fulfillment");
+    }
+  }
+
   const filtered = orders.filter((o) => statusFilter === "all" || o.status === statusFilter);
   const filters = [
     { value: "all", label: "All" },
@@ -562,6 +667,16 @@ export function StaffOrders() {
 
   return (
     <div className="stack">
+      <StaffListControls
+        q={q}
+        onQChange={setQ}
+        page={page}
+        total={total}
+        limit={limit}
+        onPageChange={(p) => void load(p, q)}
+        exportHref={staffListPath("/api/staff/export/orders", q, 1, 5000)}
+        onSearch={() => void load(1, q)}
+      />
       <div className="staff-filter-row">
         {filters.map((f) => (
           <button
@@ -588,9 +703,9 @@ export function StaffOrders() {
           <tbody>
             {filtered.map((o) => {
               const paidTotal = o.payments.reduce((sum, item) => sum + item.amountPesewas, 0);
-              const canPay = o.status !== "cancelled" && o.status !== "paid" && o.status !== "fulfilled";
-              const canFulfill = o.status === "paid" || o.status === "awaiting_pickup";
-              const canCancel = o.status !== "cancelled" && o.status !== "fulfilled";
+              const canPay = o.status === "pending_payment" || o.status === "awaiting_pickup";
+              const canFulfill = o.status === "paid" && o.fulfillmentMethod === "digital";
+              const canCancel = o.status === "pending_payment" || o.status === "awaiting_pickup";
               return (
                 <Fragment key={o.id}>
                   <tr>
@@ -603,7 +718,7 @@ export function StaffOrders() {
                         <strong>{o.name}</strong>
                       </button>
                       <div className="meta">
-                        {o.email} · {o.paymentMethod} · #{o.id.slice(0, 8)}
+                        {o.email} · {o.fulfillmentMethod ?? o.paymentMethod} · {o.paymentMethod} · #{o.id.slice(0, 8)}
                       </div>
                     </td>
                     <td>{formatGhs(o.totalPesewas)}</td>
@@ -615,16 +730,6 @@ export function StaffOrders() {
                       {canPay && (
                         <button className="btn btn-dark btn-sm" type="button" onClick={() => openPayment(o)}>
                           Record payment
-                        </button>
-                      )}
-                      {canPay && (
-                        <button className="btn btn-light btn-sm" type="button" onClick={() => setStatus(o.id, "paid")}>
-                          Mark paid
-                        </button>
-                      )}
-                      {o.status === "pending_payment" && (
-                        <button className="btn btn-light btn-sm" type="button" onClick={() => setStatus(o.id, "awaiting_pickup")}>
-                          Ready for pickup
                         </button>
                       )}
                       {canFulfill && (
@@ -665,6 +770,7 @@ export function StaffOrders() {
                           </div>
                           <div>
                             <strong>Payments</strong>
+                            {o.paymentNote && <div className="meta">Customer reference · {o.paymentNote}</div>}
                             {o.payments.length === 0 && <div className="meta">No payments recorded yet.</div>}
                             {o.payments.map((p) => (
                               <div key={p.id} className="meta">
@@ -674,6 +780,31 @@ export function StaffOrders() {
                             ))}
                           </div>
                         </div>
+                        {o.fulfillmentMethod && o.fulfillmentMethod !== "digital" && (
+                          o.status === "paid" || o.status === "fulfilled" ? (
+                            <form className="offline-payment-form" onSubmit={(e) => saveFulfillment(e, o)}>
+                              <strong>Delivery and pickup progress</strong>
+                              <label>
+                                Status
+                                <select name="fulfillmentStatus" defaultValue={o.fulfillmentStatus ?? "unfulfilled"}>
+                                  {(o.fulfillmentMethod === "delivery"
+                                    ? ["unfulfilled", "preparing", "ready_to_ship", "shipped", "delivered"]
+                                    : ["unfulfilled", "preparing", "ready_for_pickup", "collected"]
+                                  ).map((status) => <option key={status} value={status}>{status.replaceAll("_", " ")}</option>)}
+                                </select>
+                              </label>
+                              {o.fulfillmentMethod === "delivery" && (
+                                <>
+                                  <label>Carrier<input name="trackingCarrier" defaultValue={o.trackingCarrier ?? ""} placeholder="Courier name" /></label>
+                                  <label>Tracking number<input name="trackingNumber" defaultValue={o.trackingNumber ?? ""} /></label>
+                                  <label>Tracking link<input name="trackingUrl" type="url" defaultValue={o.trackingUrl ?? ""} placeholder="https://…" /></label>
+                                </>
+                              )}
+                              {fulfillmentError && <p className="error" role="alert">{fulfillmentError}</p>}
+                              <button className="btn btn-primary" type="submit">Save fulfillment</button>
+                            </form>
+                          ) : <p className="meta">Fulfillment updates are available after payment is confirmed.</p>
+                        )}
                       </td>
                     </tr>
                   )}
@@ -736,6 +867,178 @@ export function StaffOrders() {
   );
 }
 
+type StaffReturn = {
+  id: string;
+  status: string;
+  reason: string;
+  details: string;
+  decisionNotes?: string | null;
+  refundPesewas?: number | null;
+  refundReference?: string | null;
+  requestedAt: string;
+  order: { id: string; name: string; email: string; totalPesewas: number; paymentMethod: string };
+};
+
+export function StaffReturns() {
+  const { user } = useAuth();
+  if (user?.role === "technician") return <Navigate to="/staff/repairs" replace />;
+  const isAdmin = user?.role === "admin";
+  const [returns, setReturns] = useState<StaffReturn[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [refunds, setRefunds] = useState<Record<string, { amount: string; reference: string }>>({});
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await api<{ returns: StaffReturn[] }>("/api/staff/returns");
+      setReturns(response.returns);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load return requests");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  async function updateReturn(item: StaffReturn, status: "approved" | "rejected" | "refund_pending" | "refunded") {
+    setBusyId(item.id);
+    setError("");
+    const refund = refunds[item.id] ?? { amount: "", reference: "" };
+    try {
+      await api(`/api/staff/returns/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status,
+          decisionNotes: notes[item.id] || undefined,
+          ...(status === "refunded" ? {
+            refundPesewas: Math.round(Number(refund.amount) * 100),
+            refundReference: refund.reference,
+          } : {}),
+        }),
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update return request");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const isProviderPending = (status: string) => ["refund_pending", "refund_processing", "refund_needs_attention"].includes(status);
+
+  return (
+    <div className="panel stack">
+      <div className="panel-header">
+        <div>
+          <h2 style={{ fontSize: "1.25rem", margin: 0 }}>Returns and refunds</h2>
+          <p className="meta" style={{ margin: 0 }}>Review requests. Paystack refunds are confirmed by webhook; other refunds are recorded after external processing.</p>
+        </div>
+        <button type="button" className="btn btn-light btn-sm" onClick={() => void load()} disabled={loading}>Refresh</button>
+      </div>
+      {error && <div className="alert-banner" role="alert">{error}</div>}
+      {loading ? <div className="product-skeleton" style={{ minHeight: "100px" }} /> : returns.length === 0 ? (
+        <p className="meta">No return requests yet.</p>
+      ) : returns.map((item) => (
+        <article key={item.id} className="stack" style={{ padding: "1rem 0", borderTop: "1px solid var(--line)" }}>
+          <div className="line-item">
+            <div>
+              <strong>{item.order.name}</strong>
+              <div className="meta">{item.order.email} · Order #{item.order.id.slice(0, 8)} · {item.reason.replaceAll("_", " ")}</div>
+            </div>
+            <span className={`status-chip ${item.status === "refunded" ? "status-paid" : item.status === "rejected" || item.status === "refund_failed" ? "status-cancelled" : "status-pending"}`}>{item.status.replaceAll("_", " ")}</span>
+          </div>
+          <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{item.details}</p>
+          {item.refundPesewas != null && <p className="meta" style={{ margin: 0 }}>Refund {formatGhs(item.refundPesewas)} · {item.refundReference}</p>}
+          {isProviderPending(item.status) && <p className="meta">Paystack has {item.status.replaceAll("_", " ")}. This request will show refunded after provider confirmation.</p>}
+          {(item.status === "requested" || item.status === "approved" || (item.status === "refund_failed" && isAdmin)) && (
+            <form className="offline-payment-form" onSubmit={(e) => {
+              e.preventDefault();
+              void updateReturn(item, item.status === "requested" ? "approved" : item.order.paymentMethod === "paystack" ? "refund_pending" : "refunded");
+            }}>
+              <label>Decision notes<textarea rows={2} maxLength={1000} value={notes[item.id] ?? item.decisionNotes ?? ""} onChange={(e) => setNotes({ ...notes, [item.id]: e.target.value })} /></label>
+              {item.status === "requested" ? (
+                <div className="cta-row">
+                  <button className="btn btn-primary" type="submit" disabled={busyId === item.id}>Approve request</button>
+                  <button className="btn btn-light" type="button" disabled={busyId === item.id} onClick={() => void updateReturn(item, "rejected")}>Reject request</button>
+                </div>
+              ) : item.order.paymentMethod === "paystack" ? (
+                <>
+                  <label>Refund amount (GHS)<input type="number" min="0.01" max={(item.order.totalPesewas / 100).toFixed(2)} step="0.01" required value={refunds[item.id]?.amount ?? ""} onChange={(e) => setRefunds({ ...refunds, [item.id]: { ...refunds[item.id], amount: e.target.value, reference: refunds[item.id]?.reference ?? "" } })} /></label>
+                  <button className="btn btn-primary" type="submit" disabled={busyId === item.id || !isAdmin}>{item.status === "refund_failed" ? "Retry Paystack refund" : "Queue Paystack refund"}</button>
+                  {!isAdmin && <p className="meta">Only an admin can queue provider refunds.</p>}
+                </>
+              ) : (
+                <>
+                  <label>Refund amount (GHS)<input type="number" min="0.01" max={(item.order.totalPesewas / 100).toFixed(2)} step="0.01" required value={refunds[item.id]?.amount ?? ""} onChange={(e) => setRefunds({ ...refunds, [item.id]: { ...refunds[item.id], amount: e.target.value, reference: refunds[item.id]?.reference ?? "" } })} /></label>
+                  <label>Refund transaction reference<input required value={refunds[item.id]?.reference ?? ""} onChange={(e) => setRefunds({ ...refunds, [item.id]: { ...refunds[item.id], amount: refunds[item.id]?.amount ?? "" , reference: e.target.value } })} /></label>
+                  <button className="btn btn-primary" type="submit" disabled={busyId === item.id || !isAdmin}>Record refund completed</button>
+                  {!isAdmin && <p className="meta">Only an admin can record completed refunds.</p>}
+                </>
+              )}
+            </form>
+          )}
+          {item.decisionNotes && item.status !== "requested" && <p className="meta" style={{ margin: 0 }}>Staff note: {item.decisionNotes}</p>}
+        </article>
+      ))}
+    </div>
+  );
+}
+
+export function StaffAuditLogs() {
+  type AuditEntry = {
+    id: string;
+    action: string;
+    entityType: string;
+    entityId: string;
+    details: Record<string, unknown>;
+    createdAt: string;
+    actor?: { name: string; email: string } | null;
+  };
+  const [entries, setEntries] = useState<AuditEntry[]>([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api<{ auditLogs: AuditEntry[] }>("/api/staff/audit-logs")
+      .then((data) => setEntries(data.auditLogs))
+      .catch((err) => setError(err instanceof Error ? err.message : "Could not load audit log"));
+  }, []);
+
+  return (
+    <div className="panel stack">
+      <div>
+        <h2 style={{ fontSize: "1.25rem", margin: 0 }}>Admin audit log</h2>
+        <p className="meta" style={{ margin: 0 }}>Latest 200 sensitive staff actions.</p>
+      </div>
+      {error && <div className="alert-banner" role="alert">{error}</div>}
+      {!error && entries.length === 0 ? <p className="meta">No audit events recorded yet.</p> : (
+        <div style={{ overflowX: "auto" }}>
+          <table className="table">
+            <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Record</th><th>Details</th></tr></thead>
+            <tbody>
+              {entries.map((entry) => (
+                <tr key={entry.id}>
+                  <td>{new Date(entry.createdAt).toLocaleString("en-GH")}</td>
+                  <td>{entry.actor?.name ?? "Former staff"}<div className="meta">{entry.actor?.email}</div></td>
+                  <td>{entry.action.replaceAll("_", " ")}</td>
+                  <td>{entry.entityType} · {entry.entityId.slice(0, 8)}</td>
+                  <td><code>{JSON.stringify(entry.details)}</code></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 async function uploadStaffImage(file: File): Promise<string> {
   const fd = new FormData();
   fd.append("file", file);
@@ -752,9 +1055,16 @@ async function uploadDigitalAsset(file: File): Promise<string> {
 
 export function StaffProducts() {
   const { user } = useAuth();
+  if (user?.role === "technician") return <Navigate to="/staff/repairs" replace />;
   const isAdmin = user?.role === "admin";
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState({ name: "", description: "", priceGhs: "", stock: 0 });
+  const limit = 25;
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [form, setForm] = useState<{
     name: string;
@@ -777,18 +1087,47 @@ export function StaffProducts() {
   });
   const [uploadingDigitalId, setUploadingDigitalId] = useState<string | null>(null);
 
-  async function load() {
+  async function load(nextPage = page, query = q) {
     const [p, c] = await Promise.all([
-      api<{ products: Product[] }>("/api/staff/products"),
+      api<{ products: Product[]; total: number; page: number }>(
+        staffListPath("/api/staff/products", query, nextPage, limit),
+      ),
       api<{ categories: Category[] }>("/api/staff/categories"),
     ]);
     setProducts(p.products);
+    setTotal(p.total);
+    setPage(p.page);
     setCategories(c.categories);
   }
 
   useEffect(() => {
-    load();
+    void load(1, q);
   }, []);
+
+  function openProductEdit(p: Product) {
+    setEditingProductId(p.id);
+    setEditDraft({
+      name: p.name,
+      description: p.description,
+      priceGhs: (p.pricePesewas / 100).toFixed(2),
+      stock: p.stock,
+    });
+  }
+
+  async function saveProductEdit(e: FormEvent, productId: string) {
+    e.preventDefault();
+    const body: Record<string, unknown> = {
+      name: editDraft.name,
+      description: editDraft.description,
+      stock: editDraft.stock,
+    };
+    if (isAdmin) {
+      body.pricePesewas = Math.round(Number(editDraft.priceGhs) * 100);
+    }
+    await api(`/api/staff/products/${productId}`, { method: "PATCH", body: JSON.stringify(body) });
+    setEditingProductId(null);
+    await load(page, q);
+  }
 
   async function onCreateImage(file: File | null) {
     if (!file) return;
@@ -864,6 +1203,15 @@ export function StaffProducts() {
 
   return (
     <div className="stack">
+      <StaffListControls
+        q={q}
+        onQChange={setQ}
+        page={page}
+        total={total}
+        limit={limit}
+        onPageChange={(p) => void load(p, q)}
+        onSearch={() => void load(1, q)}
+      />
       {!isAdmin && <div className="alert-banner">Only an admin can add products or set their prices. You can still update stock and product files.</div>}
       <form className="panel stack" onSubmit={create}>
         <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Add product</h2>
@@ -975,11 +1323,13 @@ export function StaffProducts() {
               <th>Digital file</th>
               <th>Featured</th>
               <th>Status</th>
+              <th>Edit</th>
             </tr>
           </thead>
           <tbody>
             {products.map((p) => (
-              <tr key={p.id}>
+              <Fragment key={p.id}>
+              <tr>
                 <td>
                   <strong>{p.name}</strong>
                   <div className="meta">{p.fulfillment}</div>
@@ -1006,7 +1356,7 @@ export function StaffProducts() {
                       api(`/api/staff/products/${p.id}`, {
                         method: "PATCH",
                         body: JSON.stringify({ pricePesewas }),
-                      }).then(load);
+                      }).then(() => load(page, q));
                     }}
                   />
                 </td>
@@ -1021,7 +1371,7 @@ export function StaffProducts() {
                       api(`/api/staff/products/${p.id}`, {
                         method: "PATCH",
                         body: JSON.stringify({ stock }),
-                      }).then(load);
+                      }).then(() => load(page, q));
                     }}
                   />
                 </td>
@@ -1064,7 +1414,7 @@ export function StaffProducts() {
                       api(`/api/staff/products/${p.id}`, {
                         method: "PATCH",
                         body: JSON.stringify({ featured: !p.featured }),
-                      }).then(load)
+                      }).then(() => load(page, q))
                     }
                   >
                     {p.featured ? "Featured" : "Not featured"}
@@ -1077,13 +1427,74 @@ export function StaffProducts() {
                       api(`/api/staff/products/${p.id}`, {
                         method: "PATCH",
                         body: JSON.stringify({ active: !p.active }),
-                      }).then(load)
+                      }).then(() => load(page, q))
                     }
                   >
                     {p.active === false ? "Inactive · Activate" : "Active · Hide"}
                   </button>
                 </td>
+                <td>
+                  <button type="button" className="btn btn-primary btn-sm" onClick={() => openProductEdit(p)}>
+                    Edit
+                  </button>
+                </td>
               </tr>
+              {editingProductId === p.id && (
+                <tr className="staff-detail-row">
+                  <td colSpan={8}>
+                    <form className="staff-ticket-form" onSubmit={(e) => saveProductEdit(e, p.id)}>
+                      <label>
+                        Name
+                        <input
+                          value={editDraft.name}
+                          onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })}
+                          required
+                        />
+                      </label>
+                      <label>
+                        Description
+                        <textarea
+                          rows={3}
+                          value={editDraft.description}
+                          onChange={(e) => setEditDraft({ ...editDraft, description: e.target.value })}
+                          required
+                        />
+                      </label>
+                      <div className="form-grid two">
+                        <label>
+                          Price (GHS)
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            disabled={!isAdmin}
+                            value={editDraft.priceGhs}
+                            onChange={(e) => setEditDraft({ ...editDraft, priceGhs: e.target.value })}
+                          />
+                        </label>
+                        <label>
+                          Stock
+                          <input
+                            type="number"
+                            min="0"
+                            value={editDraft.stock}
+                            onChange={(e) => setEditDraft({ ...editDraft, stock: Number(e.target.value) })}
+                          />
+                        </label>
+                      </div>
+                      <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <button className="btn btn-primary" type="submit">
+                          Save product
+                        </button>
+                        <button className="btn btn-light" type="button" onClick={() => setEditingProductId(null)}>
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -1095,40 +1506,58 @@ export function StaffProducts() {
 export function StaffRepairs() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
-  const [repairs, setRepairs] = useState<
-    Array<{
-      id: string;
-      name: string;
-      phone: string;
-      email?: string;
-      deviceBrand: string;
-      deviceModel: string;
-      status: string;
-      paymentStatus: string;
-      quotePesewas: number | null;
-      staffNotes?: string | null;
-      issue: string;
-    }>
-  >([]);
+  type RepairRow = {
+    id: string;
+    name: string;
+    phone: string;
+    email?: string;
+    deviceBrand: string;
+    deviceModel: string;
+    status: string;
+    paymentStatus: string;
+    quotePesewas: number | null;
+    staffNotes?: string | null;
+    issue: string;
+    imei?: string | null;
+    payments?: Array<{ amountPesewas: number }>;
+  };
+  const [repairs, setRepairs] = useState<RepairRow[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ status: "", quoteGhs: "", notes: "", paymentStatus: "" });
+  const [draft, setDraft] = useState({ status: "", quoteGhs: "", notes: "" });
+  const [repairPayment, setRepairPayment] = useState({ method: "cash", amount: "", reference: "" });
+  const [repairPaymentError, setRepairPaymentError] = useState("");
+  const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const limit = 25;
 
-  async function load() {
-    const d = await api<{ repairs: typeof repairs }>("/api/staff/repairs");
+  async function load(nextPage = page, query = q) {
+    const d = await api<{ repairs: RepairRow[]; total: number; page: number }>(
+      staffListPath("/api/staff/repairs", query, nextPage, limit),
+    );
     setRepairs(d.repairs);
+    setTotal(d.total);
+    setPage(d.page);
   }
 
   useEffect(() => {
-    load();
+    void load(1, q);
   }, []);
 
   function openEdit(r: (typeof repairs)[number]) {
     setEditingId(r.id);
+    const paid = (r.payments ?? []).reduce((sum, p) => sum + p.amountPesewas, 0);
+    const remaining = r.quotePesewas != null ? Math.max(0, r.quotePesewas - paid) : 0;
+    setRepairPayment({
+      method: "cash",
+      amount: remaining > 0 ? (remaining / 100).toFixed(2) : "",
+      reference: "",
+    });
+    setRepairPaymentError("");
     setDraft({
       status: r.status,
       quoteGhs: r.quotePesewas != null ? (r.quotePesewas / 100).toFixed(2) : "",
       notes: r.staffNotes ?? "",
-      paymentStatus: r.paymentStatus,
     });
   }
 
@@ -1136,7 +1565,6 @@ export function StaffRepairs() {
     e.preventDefault();
     const body: Record<string, unknown> = {
       status: draft.status,
-      paymentStatus: draft.paymentStatus,
       staffNotes: draft.notes,
     };
     if (isAdmin && draft.quoteGhs.trim() !== "") {
@@ -1144,10 +1572,44 @@ export function StaffRepairs() {
     }
     await api(`/api/staff/repairs/${id}`, { method: "PATCH", body: JSON.stringify(body) });
     setEditingId(null);
-    await load();
+    await load(page, q);
+  }
+
+  async function recordRepairPayment(e: { preventDefault?: () => void }, r: RepairRow) {
+    e.preventDefault?.();
+    const amountPesewas = Math.round(Number(repairPayment.amount) * 100);
+    if (!Number.isInteger(amountPesewas) || amountPesewas <= 0) {
+      setRepairPaymentError("Enter a valid payment amount.");
+      return;
+    }
+    setRepairPaymentError("");
+    try {
+      await api(`/api/staff/repairs/${r.id}/payments`, {
+        method: "POST",
+        body: JSON.stringify({
+          method: repairPayment.method,
+          amountPesewas,
+          reference: repairPayment.reference || undefined,
+        }),
+      });
+      await load(page, q);
+    } catch (err) {
+      setRepairPaymentError(err instanceof Error ? err.message : "Could not record payment");
+    }
   }
 
   return (
+    <div className="stack">
+      <StaffListControls
+        q={q}
+        onQChange={setQ}
+        page={page}
+        total={total}
+        limit={limit}
+        onPageChange={(p) => void load(p, q)}
+        exportHref={staffListPath("/api/staff/export/repairs", q, 1, 5000)}
+        onSearch={() => void load(1, q)}
+      />
     <div className="panel" style={{ overflowX: "auto" }}>
       <table className="table">
         <thead>
@@ -1167,6 +1629,7 @@ export function StaffRepairs() {
                     {r.deviceBrand} {r.deviceModel}
                   </strong>
                   <div className="meta">{r.issue}</div>
+                  {r.imei ? <div className="meta">IMEI {r.imei}</div> : null}
                 </td>
                 <td>
                   {r.name}
@@ -1214,16 +1677,6 @@ export function StaffRepairs() {
                         />
                       </label>
                       <label>
-                        Payment
-                        <select
-                          value={draft.paymentStatus}
-                          onChange={(e) => setDraft({ ...draft, paymentStatus: e.target.value })}
-                        >
-                          <option value="unpaid">Unpaid</option>
-                          <option value="paid">Paid</option>
-                        </select>
-                      </label>
-                      <label>
                         Staff notes
                         <textarea
                           value={draft.notes}
@@ -1231,6 +1684,50 @@ export function StaffRepairs() {
                           rows={2}
                         />
                       </label>
+                      {r.quotePesewas != null && r.quotePesewas > 0 && (
+                        <div className="stack">
+                          <strong>Record counter payment</strong>
+                          {repairPaymentError && <div className="alert-banner">{repairPaymentError}</div>}
+                          <div className="form-grid two">
+                            <label>
+                              Method
+                              <select
+                                value={repairPayment.method}
+                                onChange={(e) => setRepairPayment({ ...repairPayment, method: e.target.value })}
+                              >
+                                <option value="cash">Cash</option>
+                                <option value="momo">MoMo</option>
+                                <option value="bank">Bank</option>
+                                <option value="other">Other</option>
+                              </select>
+                            </label>
+                            <label>
+                              Amount (GHS)
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={repairPayment.amount}
+                                onChange={(e) => setRepairPayment({ ...repairPayment, amount: e.target.value })}
+                              />
+                            </label>
+                          </div>
+                          <label>
+                            Reference
+                            <input
+                              value={repairPayment.reference}
+                              onChange={(e) => setRepairPayment({ ...repairPayment, reference: e.target.value })}
+                            />
+                          </label>
+                          <button
+                            className="btn btn-light btn-sm"
+                            type="button"
+                            onClick={(e) => void recordRepairPayment(e, r)}
+                          >
+                            Record payment
+                          </button>
+                        </div>
+                      )}
                       <div style={{ display: "flex", gap: "0.5rem" }}>
                         <button className="btn btn-primary" type="submit">
                           Save
@@ -1255,6 +1752,7 @@ export function StaffRepairs() {
           ))}
         </tbody>
       </table>
+    </div>
     </div>
   );
 }
@@ -1369,7 +1867,7 @@ export function StaffUsers() {
               </td>
               <td>{u.role}</td>
               <td style={{ display: "flex", gap: "0.35rem" }}>
-                {(["consumer", "manager", "admin"] as const).map((role) => (
+                {(["consumer", "manager", "technician", "admin"] as const).map((role) => (
                   <button
                     key={role}
                     className="btn btn-light"
@@ -1596,18 +2094,26 @@ type StoreSettingsForm = {
 
 export function StaffSettings() {
   const { user } = useAuth();
+  if (user?.role === "technician") return <Navigate to="/staff/repairs" replace />;
   const isAdmin = user?.role === "admin";
   const [form, setForm] = useState<StoreSettingsForm | null>(null);
   const [paystackEnabled, setPaystackEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<string>("");
+  const [uploadsWarning, setUploadsWarning] = useState<string | null>(null);
 
   useEffect(() => {
-    api<{ settings: StoreSettingsForm; paystackEnabled?: boolean }>("/api/staff/settings")
+    api<{
+      settings: StoreSettingsForm;
+      paystackEnabled?: boolean;
+      uploadsWarning?: string | null;
+    }>("/api/staff/settings")
       .then((d) => {
         setForm(d.settings);
         setPaystackEnabled(Boolean(d.paystackEnabled));
+        setUploadsWarning(d.uploadsWarning ?? null);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load settings"));
   }, []);
@@ -1617,6 +2123,7 @@ export function StaffSettings() {
     if (!form || !isAdmin) return;
     setSaving(true);
     setError("");
+    setFieldErrors("");
     setMessage("");
     try {
       const res = await api<{ settings: StoreSettingsForm }>("/api/staff/settings", {
@@ -1626,7 +2133,20 @@ export function StaffSettings() {
       setForm(res.settings);
       setMessage("Store settings saved. Changes apply to checkout and storefront immediately.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save settings");
+      if (err instanceof ApiError) {
+        setError(err.message);
+        const detailText =
+          typeof err.details === "object" && err.details
+            ? Object.entries(
+                (err.details as { fieldErrors?: Record<string, string[]> }).fieldErrors ?? {},
+              )
+                .flatMap(([key, msgs]) => msgs.map((m) => `${key}: ${m}`))
+                .join(" · ")
+            : "";
+        setFieldErrors(detailText);
+      } else {
+        setError(err instanceof Error ? err.message : "Could not save settings");
+      }
     } finally {
       setSaving(false);
     }
@@ -1647,6 +2167,12 @@ export function StaffSettings() {
         </div>
       )}
       {error && <div className="alert-banner">{error}</div>}
+      {fieldErrors && <div className="alert-banner meta">{fieldErrors}</div>}
+      {uploadsWarning && (
+        <div className="alert-banner" role="status">
+          {uploadsWarning}
+        </div>
+      )}
 
       <div className="panel stack">
         <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Store contact</h2>
@@ -1682,36 +2208,25 @@ export function StaffSettings() {
 
       <div className="panel stack">
         <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Shipping rates (GHS)</h2>
+        <p className="meta">Greater Accra zone is a delivery rate band; the shop is based in Koforidua.</p>
         <div className="form-grid two">
           <label>
-            Accra / Greater Accra
-            <input
-              type="number"
-              min="0"
-              step="0.01"
+            Greater Accra zone
+            <GhsInput
               disabled={!isAdmin}
-              value={(form.shipping.accraPesewas / 100).toFixed(2)}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  shipping: { ...form.shipping, accraPesewas: Math.round(Number(e.target.value) * 100) },
-                })
+              pesewas={form.shipping.accraPesewas}
+              onPesewasChange={(accraPesewas) =>
+                setForm({ ...form, shipping: { ...form.shipping, accraPesewas } })
               }
             />
           </label>
           <label>
             Other regions
-            <input
-              type="number"
-              min="0"
-              step="0.01"
+            <GhsInput
               disabled={!isAdmin}
-              value={(form.shipping.otherPesewas / 100).toFixed(2)}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  shipping: { ...form.shipping, otherPesewas: Math.round(Number(e.target.value) * 100) },
-                })
+              pesewas={form.shipping.otherPesewas}
+              onPesewasChange={(otherPesewas) =>
+                setForm({ ...form, shipping: { ...form.shipping, otherPesewas } })
               }
             />
           </label>

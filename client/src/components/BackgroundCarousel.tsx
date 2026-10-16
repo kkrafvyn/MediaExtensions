@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 export type CarouselSlide = {
   src: string;
@@ -26,6 +27,7 @@ export function BackgroundCarousel({
 
   useEffect(() => {
     if (slides.length <= 1 || paused) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const id = window.setInterval(() => {
       setIndex((i) => (i + 1) % slides.length);
     }, intervalMs);
@@ -34,39 +36,41 @@ export function BackgroundCarousel({
 
   if (!slides.length) return null;
 
+  const dots = showDots && slides.length > 1 ? (
+    <div className={`bg-carousel-dots${fixed ? " bg-carousel-dots-fixed" : ""}`} role="tablist" aria-label="Background slides">
+      {slides.map((slide, i) => (
+        <button
+          key={slide.src}
+          type="button"
+          className={`bg-carousel-dot${i === index ? " is-active" : ""}`}
+          aria-label={`Show slide ${i + 1}: ${slide.alt}`}
+          aria-selected={i === index}
+          onClick={() => setIndex(i)}
+        />
+      ))}
+    </div>
+  ) : null;
+
   return (
-    <div
-      className={`bg-carousel${fixed ? " bg-carousel-fixed" : ""} ${className}`.trim()}
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-    >
-      <div className="bg-carousel-stage" aria-hidden="true">
-        {slides.map((slide, i) => (
-          <div
-            key={slide.src}
-            className={`bg-carousel-slide${i === index ? " is-active" : ""}`}
-            style={{ backgroundImage: `url(${slide.src})` }}
-            role="img"
-            aria-label={slide.alt}
-          />
-        ))}
-        <div className="bg-carousel-veil" />
-      </div>
-      {showDots && slides.length > 1 && (
-        <div className="bg-carousel-dots" role="tablist" aria-label="Background slides">
+    <>
+      <div
+        className={`bg-carousel${fixed ? " bg-carousel-fixed" : ""} ${className}`.trim()}
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+      >
+        <div className="bg-carousel-stage" aria-hidden="true">
           {slides.map((slide, i) => (
-            <button
+            <div
               key={slide.src}
-              type="button"
-              className={`bg-carousel-dot${i === index ? " is-active" : ""}`}
-              aria-label={`Show slide ${i + 1}: ${slide.alt}`}
-              aria-selected={i === index}
-              onClick={() => setIndex(i)}
+              className={`bg-carousel-slide${i === index ? " is-active" : ""}`}
+              style={{ backgroundImage: `url(${slide.src})` }}
             />
           ))}
+          <div className="bg-carousel-veil" />
         </div>
-      )}
-    </div>
+      </div>
+      {fixed && dots ? createPortal(dots, document.body) : dots}
+    </>
   );
 }
 

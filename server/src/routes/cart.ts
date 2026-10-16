@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/index.js";
 import { cartItems } from "../db/schema.js";
+import { availableStock } from "../lib/inventory.js";
 import {
   assertProductAvailable,
   getCartWithItems,
@@ -38,7 +39,7 @@ router.post("/items", async (req, res) => {
 
   if (existing) {
     const nextQty = existing.quantity + parsed.data.quantity;
-    if (product.fulfillment !== "digital" && nextQty > product.stock) {
+    if (product.fulfillment !== "digital" && nextQty > availableStock(product)) {
       return res.status(400).json({ error: "Not enough stock" });
     }
     await db.update(cartItems).set({ quantity: nextQty }).where(eq(cartItems.id, existing.id));
@@ -68,7 +69,7 @@ router.patch("/items/:id", async (req, res) => {
   if (!item || !item.product) {
     return res.status(404).json({ error: "Item not found" });
   }
-  if (item.product.fulfillment !== "digital" && parsed.data.quantity > item.product.stock) {
+  if (item.product.fulfillment !== "digital" && parsed.data.quantity > availableStock(item.product)) {
     return res.status(400).json({ error: "Not enough stock" });
   }
 

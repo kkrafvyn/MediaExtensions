@@ -10,7 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
-export const userRoleEnum = pgEnum("user_role", ["admin", "manager", "consumer"]);
+export const userRoleEnum = pgEnum("user_role", ["admin", "manager", "technician", "consumer"]);
 export const fulfillmentEnum = pgEnum("fulfillment", ["digital", "physical", "both"]);
 export const orderStatusEnum = pgEnum("order_status", [
   "pending_payment",
@@ -19,11 +19,37 @@ export const orderStatusEnum = pgEnum("order_status", [
   "fulfilled",
   "cancelled",
 ]);
+export const orderFulfillmentMethodEnum = pgEnum("order_fulfillment_method", [
+  "digital",
+  "delivery",
+  "pickup",
+]);
+export const orderFulfillmentStatusEnum = pgEnum("order_fulfillment_status", [
+  "not_required",
+  "unfulfilled",
+  "preparing",
+  "ready_to_ship",
+  "shipped",
+  "delivered",
+  "ready_for_pickup",
+  "collected",
+]);
+export const returnRequestStatusEnum = pgEnum("return_request_status", [
+  "requested",
+  "approved",
+  "rejected",
+  "refund_pending",
+  "refund_processing",
+  "refund_needs_attention",
+  "refund_failed",
+  "refunded",
+]);
 export const paymentMethodEnum = pgEnum("payment_method", [
   "cash",
   "momo",
   "bank",
   "pickup",
+  "pay_on_pickup",
   "paystack",
 ]);
 export const repairStatusEnum = pgEnum("repair_status", [
@@ -49,6 +75,11 @@ export const users = pgTable("users", {
   phone: text("phone"),
   passwordHash: text("password_hash").notNull(),
   role: userRoleEnum("role").notNull().default("consumer"),
+  emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+  mfaSecret: text("mfa_secret"),
+  mfaEnabled: boolean("mfa_enabled").notNull().default(false),
+  mfaRecoveryCodes: text("mfa_recovery_codes").array().notNull().default([]),
+  sessionVersion: integer("session_version").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -107,6 +138,12 @@ export const orders = pgTable("orders", {
   phone: text("phone"),
   name: text("name").notNull(),
   status: orderStatusEnum("status").notNull().default("pending_payment"),
+  fulfillmentMethod: orderFulfillmentMethodEnum("fulfillment_method").notNull().default("digital"),
+  fulfillmentStatus: orderFulfillmentStatusEnum("fulfillment_status").notNull().default("not_required"),
+  trackingCarrier: text("tracking_carrier"),
+  trackingNumber: text("tracking_number"),
+  trackingUrl: text("tracking_url"),
+  fulfilledAt: timestamp("fulfilled_at", { withTimezone: true }),
   paymentMethod: paymentMethodEnum("payment_method").notNull(),
   subtotalPesewas: integer("subtotal_pesewas").notNull(),
   shippingPesewas: integer("shipping_pesewas").notNull().default(0),
@@ -121,6 +158,7 @@ export const orders = pgTable("orders", {
     landmark?: string;
   } | null>(),
   paymentNote: text("payment_note"),
+  staffNotes: text("staff_notes"),
   paystackReference: text("paystack_reference"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -132,6 +170,15 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const emailVerificationTokens = pgTable("email_verification_tokens", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull().unique(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   usedAt: timestamp("used_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -165,15 +212,39 @@ export const orderItems = pgTable("order_items", {
 // external transfer. Gateway payments remain verified through their provider.
 export const paymentRecords = pgTable("payment_records", {
   id: uuid("id").defaultRandom().primaryKey(),
-  orderId: uuid("order_id")
-    .notNull()
-    .references(() => orders.id, { onDelete: "cascade" }),
+  orderId: uuid("order_id").references(() => orders.id, { onDelete: "cascade" }),
+  repairOrderId: uuid("repair_order_id"),
   method: text("method").notNull(),
   amountPesewas: integer("amount_pesewas").notNull(),
   reference: text("reference"),
   notes: text("notes"),
   receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
   recordedByUserId: uuid("recorded_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const orderReturns = pgTable("order_returns", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  orderId: uuid("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
+  requestedByUserId: uuid("requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  reason: text("reason").notNull(),
+  details: text("details").notNull(),
+  status: returnRequestStatusEnum("status").notNull().default("requested"),
+  decisionNotes: text("decision_notes"),
+  refundPesewas: integer("refund_pesewas"),
+  refundReference: text("refund_reference"),
+  reviewedByUserId: uuid("reviewed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  requestedAt: timestamp("requested_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const auditLogs = pgTable("audit_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+  action: text("action").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  details: jsonb("details").$type<Record<string, unknown>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -217,6 +288,8 @@ export const repairOrders = pgTable("repair_orders", {
   paymentStatus: text("payment_status").notNull().default("unpaid"),
   quotePesewas: integer("quote_pesewas"),
   staffNotes: text("staff_notes"),
+  imei: text("imei"),
+  quoteDecision: text("quote_decision").notNull().default("pending"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -234,6 +307,8 @@ export const contactMessages = pgTable("contact_messages", {
 export const usersRelations = relations(users, ({ many }) => ({
   orders: many(orders),
   repairOrders: many(repairOrders),
+  auditLogs: many(auditLogs),
+  emailVerificationTokens: many(emailVerificationTokens),
 }));
 
 export const categoriesRelations = relations(categories, ({ many }) => ({
@@ -263,10 +338,22 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   user: one(users, { fields: [orders.userId], references: [users.id] }),
   items: many(orderItems),
   payments: many(paymentRecords),
+  returns: many(orderReturns),
+}));
+
+export const orderReturnsRelations = relations(orderReturns, ({ one }) => ({
+  order: one(orders, { fields: [orderReturns.orderId], references: [orders.id] }),
+  requestedBy: one(users, { fields: [orderReturns.requestedByUserId], references: [users.id] }),
+  reviewedBy: one(users, { fields: [orderReturns.reviewedByUserId], references: [users.id] }),
+}));
+
+export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+  actor: one(users, { fields: [auditLogs.actorUserId], references: [users.id] }),
 }));
 
 export const paymentRecordsRelations = relations(paymentRecords, ({ one }) => ({
   order: one(orders, { fields: [paymentRecords.orderId], references: [orders.id] }),
+  repairOrder: one(repairOrders, { fields: [paymentRecords.repairOrderId], references: [repairOrders.id] }),
   recordedBy: one(users, { fields: [paymentRecords.recordedByUserId], references: [users.id] }),
 }));
 
@@ -291,17 +378,25 @@ export const repairServicesRelations = relations(repairServices, ({ one, many })
   repairOrders: many(repairOrders),
 }));
 
-export const repairOrdersRelations = relations(repairOrders, ({ one }) => ({
+export const repairOrdersRelations = relations(repairOrders, ({ one, many }) => ({
   user: one(users, { fields: [repairOrders.userId], references: [users.id] }),
   service: one(repairServices, {
     fields: [repairOrders.serviceId],
     references: [repairServices.id],
   }),
+  payments: many(paymentRecords),
 }));
 
 export const passwordResetTokensRelations = relations(passwordResetTokens, ({ one }) => ({
   user: one(users, {
     fields: [passwordResetTokens.userId],
+    references: [users.id],
+  }),
+}));
+
+export const emailVerificationTokensRelations = relations(emailVerificationTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [emailVerificationTokens.userId],
     references: [users.id],
   }),
 }));

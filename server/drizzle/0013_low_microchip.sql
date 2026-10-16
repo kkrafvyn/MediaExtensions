@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "mfa_recovery_codes" text[] DEFAULT '{}' NOT NULL;

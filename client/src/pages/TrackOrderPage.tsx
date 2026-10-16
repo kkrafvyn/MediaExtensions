@@ -2,6 +2,12 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, formatGhs } from "../lib/api";
 import { IconCheck } from "../components/Icons";
+import {
+  REPAIR_TRACK_STEPS,
+  orderTimelineIndex,
+  orderTimelineLabels,
+  repairTimelineIndex,
+} from "../lib/trackingSteps";
 import type { OrderSummary, TrackDownload } from "../types";
 
 type RepairTrack = {
@@ -58,13 +64,9 @@ export function TrackOrderPage() {
     }
   }
 
-  const orderSteps = ["pending_payment", "paid", "fulfilled", "completed"];
-  const currentStepIdx = order ? orderSteps.indexOf(order.status.toLowerCase()) : 0;
-  const activeIdx = currentStepIdx >= 0 ? currentStepIdx : 0;
-
-  const repairSteps = ["submitted", "diagnosing", "quoted", "in_progress", "ready", "completed"];
-  const repairIdx = repair ? repairSteps.indexOf(repair.status.toLowerCase()) : 0;
-  const repairActiveIdx = repairIdx >= 0 ? repairIdx : 0;
+  const orderTrack = order ? orderTimelineIndex(order) : { index: 0, cancelled: false };
+  const orderLabels = order ? orderTimelineLabels(order) : ["Placed", "Paid", "Shipped", "Delivered"];
+  const repairTrack = repair ? repairTimelineIndex(repair.status) : { index: 0, cancelled: false };
 
   return (
     <div className="page container" style={{ maxWidth: 680 }}>
@@ -122,7 +124,11 @@ export function TrackOrderPage() {
           <input
             value={referenceId}
             onChange={(e) => setReferenceId(e.target.value)}
-            placeholder={mode === "order" ? "e.g. 7f9a1b2c" : "e.g. repair ticket ID"}
+            placeholder={
+              mode === "order"
+                ? "Full order UUID from your confirmation email"
+                : "Full repair ticket UUID from your booking email"
+            }
             required
           />
         </label>
@@ -140,22 +146,24 @@ export function TrackOrderPage() {
             Order #{order.id.slice(0, 8)} Details
           </h3>
 
+          {orderTrack.cancelled && (
+            <p className="alert-banner" style={{ marginBottom: "1rem" }}>
+              This order was cancelled.
+            </p>
+          )}
+
           <div className="tracking-timeline">
-            {[
-              { label: "Placed", step: 0 },
-              { label: "Paid", step: 1 },
-              { label: "Dispatched", step: 2 },
-              { label: "Delivered", step: 3 },
-            ].map((item) => {
-              const isCompleted = activeIdx > item.step;
-              const isCurrent = activeIdx === item.step;
+            {orderLabels.map((label, step) => {
+              const activeIdx = orderTrack.cancelled ? -1 : orderTrack.index;
+              const isCompleted = activeIdx > step;
+              const isCurrent = activeIdx === step;
               return (
                 <div
-                  key={item.label}
+                  key={label}
                   className={`timeline-step ${isCompleted ? "completed" : ""} ${isCurrent ? "current" : ""}`}
                 >
-                  <div className="timeline-icon">{isCompleted ? <IconCheck size={14} /> : item.step + 1}</div>
-                  <span className="timeline-label">{item.label}</span>
+                  <div className="timeline-icon">{isCompleted ? <IconCheck size={14} /> : step + 1}</div>
+                  <span className="timeline-label">{label}</span>
                 </div>
               );
             })}
@@ -163,13 +171,33 @@ export function TrackOrderPage() {
 
           <div className="line-item">
             <span>Status</span>
-            <span className="status-chip status-paid">{order.status.replaceAll("_", " ")}</span>
+            <span className={`status-chip ${order.status === "paid" || order.status === "fulfilled" ? "status-paid" : order.status === "cancelled" ? "status-cancelled" : "status-pending"}`}>{order.status.replaceAll("_", " ")}</span>
           </div>
 
           <div className="line-item">
             <span>Payment Method</span>
             <strong style={{ textTransform: "capitalize" }}>{order.paymentMethod}</strong>
           </div>
+
+          <div className="line-item">
+            <span>Fulfillment</span>
+            <strong style={{ textTransform: "capitalize" }}>
+              {order.fulfillmentMethod ?? (order.paymentMethod === "pickup" ? "pickup" : order.shipping ? "delivery" : "digital")}
+            </strong>
+          </div>
+          {order.fulfillmentStatus && order.fulfillmentStatus !== "not_required" && (
+            <div className="line-item">
+              <span>Fulfillment progress</span>
+              <strong style={{ textTransform: "capitalize" }}>{order.fulfillmentStatus.replaceAll("_", " ")}</strong>
+            </div>
+          )}
+          {order.fulfillmentMethod === "delivery" && (order.trackingNumber || order.trackingUrl) && (
+            <p className="meta">
+              {order.trackingCarrier ? `${order.trackingCarrier} · ` : ""}
+              {order.trackingNumber ? `Tracking ${order.trackingNumber}` : ""}
+              {order.trackingUrl && <> · <a href={order.trackingUrl} target="_blank" rel="noreferrer">Track shipment</a></>}
+            </p>
+          )}
 
           <div style={{ borderTop: "1px solid var(--line-subtle)", paddingTop: "0.75rem" }}>
             <span style={{ fontSize: "0.85rem", color: "var(--muted)", fontWeight: 600 }}>Items in Order:</span>
@@ -184,7 +212,7 @@ export function TrackOrderPage() {
           </div>
 
           <div className="line-item order-total-hero">
-            <span>Total Paid</span>
+            <span>Order Total</span>
             <span style={{ color: "var(--accent)" }}>{formatGhs(order.totalPesewas)}</span>
           </div>
 
@@ -220,18 +248,10 @@ export function TrackOrderPage() {
           )}
 
           <div className="cta-row" style={{ marginTop: "1rem" }}>
-            <Link
-              to={`/order/${order.id}?email=${encodeURIComponent(email.trim())}`}
-              className="btn btn-primary"
-              style={{ flex: 1 }}
-            >
+            <Link to={`/order/${order.id}`} className="btn btn-primary" style={{ flex: 1 }}>
               View Full Order & Downloads
             </Link>
-            <Link
-              to={`/order/${order.id}/receipt?email=${encodeURIComponent(email.trim())}`}
-              className="btn btn-light"
-              style={{ flex: 1 }}
-            >
+            <Link to={`/order/${order.id}/receipt`} className="btn btn-light" style={{ flex: 1 }}>
               Print Receipt
             </Link>
           </div>
@@ -244,23 +264,23 @@ export function TrackOrderPage() {
             Repair #{repair.id.slice(0, 8)} · {repair.deviceBrand} {repair.deviceModel}
           </h3>
 
+          {repairTrack.cancelled && (
+            <p className="alert-banner" style={{ marginBottom: "1rem" }}>
+              This repair ticket was cancelled.
+            </p>
+          )}
+
           <div className="tracking-timeline">
-            {[
-              { label: "Submitted", step: 0 },
-              { label: "Diagnosing", step: 1 },
-              { label: "Quoted", step: 2 },
-              { label: "In Progress", step: 3 },
-              { label: "Ready", step: 4 },
-              { label: "Completed", step: 5 },
-            ].map((item) => {
-              const isCompleted = repairActiveIdx > item.step;
-              const isCurrent = repairActiveIdx === item.step;
+            {REPAIR_TRACK_STEPS.map((item, step) => {
+              const activeIdx = repairTrack.cancelled ? -1 : repairTrack.index;
+              const isCompleted = activeIdx > step;
+              const isCurrent = activeIdx === step;
               return (
                 <div
-                  key={item.label}
+                  key={item.key}
                   className={`timeline-step ${isCompleted ? "completed" : ""} ${isCurrent ? "current" : ""}`}
                 >
-                  <div className="timeline-icon">{isCompleted ? <IconCheck size={14} /> : item.step + 1}</div>
+                  <div className="timeline-icon">{isCompleted ? <IconCheck size={14} /> : step + 1}</div>
                   <span className="timeline-label">{item.label}</span>
                 </div>
               );

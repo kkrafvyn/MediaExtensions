@@ -8,7 +8,7 @@ async function ensureUser(opts: {
   email: string;
   password: string;
   name: string;
-  role: "admin" | "manager" | "consumer";
+  role: "admin" | "manager" | "technician" | "consumer";
   minPasswordLength?: number;
 }) {
   const email = opts.email.trim().toLowerCase();
@@ -67,15 +67,17 @@ async function seed() {
     });
   }
 
-  const consumerEmail = process.env.SEED_CONSUMER_EMAIL?.trim();
-  const consumerPassword = process.env.SEED_CONSUMER_PASSWORD;
-  if (consumerEmail && consumerPassword) {
-    await ensureUser({
-      email: consumerEmail,
-      password: consumerPassword,
-      name: "Demo customer",
-      role: "consumer",
-    });
+  if (process.env.ALLOW_DEMO_SEED === "1") {
+    const consumerEmail = process.env.SEED_CONSUMER_EMAIL?.trim();
+    const consumerPassword = process.env.SEED_CONSUMER_PASSWORD;
+    if (consumerEmail && consumerPassword) {
+      await ensureUser({
+        email: consumerEmail,
+        password: consumerPassword,
+        name: "Demo customer",
+        role: "consumer",
+      });
+    }
   }
 
   console.log("Seed complete. Add products from the staff console.");

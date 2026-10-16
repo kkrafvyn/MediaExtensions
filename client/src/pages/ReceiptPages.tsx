@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { api, formatGhs } from "../lib/api";
 import type { OrderSummary } from "../types";
 
@@ -15,18 +15,15 @@ type ReceiptResponse = {
 
 export function OrderReceiptPage() {
   const { id } = useParams();
-  const [searchParams] = useSearchParams();
   const [data, setData] = useState<ReceiptResponse | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!id) return;
-    const email = searchParams.get("email");
-    const qs = email ? `?email=${encodeURIComponent(email)}` : "";
-    api<ReceiptResponse>(`/api/orders/${id}/receipt${qs}`)
+    api<ReceiptResponse>(`/api/orders/${id}/receipt`)
       .then(setData)
       .catch((e) => setError(e.message));
-  }, [id, searchParams]);
+  }, [id]);
 
   if (error) {
     return (
@@ -62,7 +59,7 @@ export function OrderReceiptPage() {
         <header className="receipt-head">
           <strong style={{ fontSize: "1.3rem", fontFamily: "var(--font-display)", fontWeight: 800 }}>Media Extensions</strong>
           <div className="meta">
-            {store?.address ?? "Accra, Ghana"}
+            {store?.address ?? "Koforidua, Ghana"}
             {store?.phone ? ` · ${store.phone}` : ""}
             {store?.email ? ` · ${store.email}` : ""}
           </div>
@@ -89,6 +86,18 @@ export function OrderReceiptPage() {
           <span>Payment</span>
           <span>{order.paymentMethod}</span>
         </div>
+        <div className="line-item">
+          <span>Fulfillment</span>
+          <span>{order.fulfillmentMethod ?? (order.paymentMethod === "pickup" ? "pickup" : order.shipping ? "delivery" : "digital")}</span>
+        </div>
+        {order.fulfillmentStatus && order.fulfillmentStatus !== "not_required" && (
+          <div className="line-item">
+            <span>Fulfillment progress</span>
+            <span>{order.fulfillmentStatus.replaceAll("_", " ")}</span>
+          </div>
+        )}
+        {order.trackingNumber && <div className="line-item"><span>Tracking number</span><span>{order.trackingNumber}</span></div>}
+        {order.trackingUrl && <div className="line-item"><span>Tracking link</span><a href={order.trackingUrl} target="_blank" rel="noreferrer">Track shipment</a></div>}
         {order.createdAt && (
           <div className="line-item">
             <span>Date</span>
@@ -179,7 +188,7 @@ export function RepairReceiptPage() {
       <article className="receipt panel stack">
         <header className="receipt-head">
           <strong style={{ fontSize: "1.3rem", fontFamily: "var(--font-display)", fontWeight: 800 }}>Media Extensions</strong>
-          <div className="meta">GSM repair receipt · Accra, Ghana</div>
+          <div className="meta">GSM repair receipt · Koforidua, Ghana</div>
         </header>
 
         <h1 style={{ fontSize: "1.5rem", margin: 0 }}>Repair receipt</h1>

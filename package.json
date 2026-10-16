@@ -15,13 +15,11 @@
     "db:generate": "npm run db:generate -w server",
     "db:migrate": "npm run db:migrate -w server",
     "db:seed": "npm run db:seed -w server",
+    "db:purge-catalog": "npm run db:purge-catalog -w server",
     "db:setup": "npm run db:migrate -w server && npm run db:seed -w server",
     "backup": "npm run backup -w server"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
-  },
-  "dependencies": {
-    "serverless-http": "^4.0.0"
   }
 }

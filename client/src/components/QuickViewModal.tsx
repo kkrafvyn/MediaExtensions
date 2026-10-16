@@ -138,7 +138,7 @@ export function QuickViewModal({ product, onClose, onOpenCart }: QuickViewModalP
               {isDigital ? (
                 <>
                   <IconBolt size={14} />
-                  <span>Delivered instantly after payment + stored in your account vault.</span>
+                  <span>Download from your account after payment is confirmed.</span>
                 </>
               ) : (
                 <>

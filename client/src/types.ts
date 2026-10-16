@@ -1,4 +1,4 @@
-export type Role = "admin" | "manager" | "consumer";
+export type Role = "admin" | "manager" | "technician" | "consumer";
 
 export type User = {
   id: string;
@@ -6,6 +6,8 @@ export type User = {
   name: string;
   phone: string | null;
   role: Role;
+  emailVerifiedAt?: string | null;
+  mfaEnabled?: boolean;
 };
 
 export type Category = {
@@ -64,6 +66,7 @@ export type RepairService = {
 export type PaymentInfo = {
   momo: { network: string; number: string; name: string };
   bank: { bankName: string; accountNumber: string; accountName: string };
+  pickup: { name: string; address: string; landmark: string; hours: string; mapUrl: string };
 };
 
 export type SiteMeta = {
@@ -72,6 +75,7 @@ export type SiteMeta = {
   regions?: string[];
   shipping: { accraPesewas: number; otherPesewas: number };
   pickup?: {
+    name?: string;
     address?: string;
     landmark?: string;
     hours?: string;
@@ -115,7 +119,12 @@ export type StaffAnalytics = {
 export type OrderSummary = {
   id: string;
   status: string;
+  fulfillmentMethod?: "digital" | "delivery" | "pickup";
+  fulfillmentStatus?: string;
   paymentMethod: string;
+  trackingCarrier?: string | null;
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
   totalPesewas: number;
   email?: string;
   name?: string;

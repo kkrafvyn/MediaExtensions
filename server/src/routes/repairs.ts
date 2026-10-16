@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { asc, desc, eq, ilike } from "drizzle-orm";
+import { and, asc, desc, eq, ilike } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/index.js";
 import { repairOrders, repairServices } from "../db/schema.js";
@@ -9,6 +9,8 @@ import {
   requireAuth,
   type AuthedRequest,
 } from "../middleware/auth.js";
+import { grantRepairAccess, hasGrantedRepairAccess } from "../services/guestLinking.js";
+import { isStaffViewer } from "../lib/orderAccess.js";
 
 const router = Router();
 
@@ -31,6 +33,11 @@ router.post("/book", async (req: AuthedRequest, res) => {
     issue: z.string().min(5),
     dropOffNotes: z.string().optional(),
     paymentMethod: z.enum(["momo", "bank", "pickup"]).optional(),
+    imei: z
+      .string()
+      .regex(/^\d{15}$/)
+      .optional()
+      .or(z.literal("")),
   });
 
   const parsed = schema.safeParse(req.body);
@@ -64,12 +71,15 @@ router.post("/book", async (req: AuthedRequest, res) => {
       deviceModel: parsed.data.deviceModel,
       issue: parsed.data.issue,
       dropOffNotes: parsed.data.dropOffNotes,
+      imei: parsed.data.imei?.trim() || null,
       paymentMethod: parsed.data.paymentMethod,
       quotePesewas,
       status: "submitted",
       paymentStatus: "unpaid",
     })
     .returning();
+
+  grantRepairAccess(req, row.id);
 
   void notifyRepairBooked({
     ...row,
@@ -82,7 +92,7 @@ router.post("/book", async (req: AuthedRequest, res) => {
 router.post("/track", async (req, res) => {
   const schema = z.object({
     email: z.string().email(),
-    repairId: z.string().min(4),
+    repairId: z.string().uuid(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) {
@@ -90,25 +100,18 @@ router.post("/track", async (req, res) => {
   }
 
   const email = parsed.data.email.toLowerCase();
-  const repairId = parsed.data.repairId.trim().toLowerCase();
+  const repairId = parsed.data.repairId.trim();
 
-  const candidates = await db.query.repairOrders.findMany({
-    where: ilike(repairOrders.email, email),
+  const repair = await db.query.repairOrders.findFirst({
+    where: and(eq(repairOrders.id, repairId), ilike(repairOrders.email, email)),
     with: { service: true },
-    orderBy: [desc(repairOrders.createdAt)],
-    limit: 50,
   });
-
-  const repair = candidates.find(
-    (r) =>
-      r.id.toLowerCase() === repairId ||
-      r.id.toLowerCase().startsWith(repairId) ||
-      r.id.slice(0, 8).toLowerCase() === repairId,
-  );
 
   if (!repair) {
     return res.status(404).json({ error: "Repair not found for that email and ticket ID" });
   }
+
+  grantRepairAccess(req, repair.id);
 
   res.json({ repair });
 });
@@ -135,13 +138,53 @@ router.get("/:id", async (req: AuthedRequest, res) => {
   const allowed =
     (req.user && repair.userId === req.user.id) ||
     (!!repair.sessionId && repair.sessionId === sessionId) ||
-    (req.user && (req.user.role === "admin" || req.user.role === "manager"));
+    isStaffViewer(req.user) ||
+    hasGrantedRepairAccess(req, repair.id);
 
   if (!allowed) {
     return res.status(403).json({ error: "Not allowed" });
   }
 
   res.json({ repair });
+});
+
+router.post("/:id/quote-decision", async (req: AuthedRequest, res) => {
+  const schema = z.object({
+    decision: z.enum(["approved", "declined"]),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid decision" });
+
+  const repair = await db.query.repairOrders.findFirst({
+    where: eq(repairOrders.id, req.params.id),
+  });
+  if (!repair) return res.status(404).json({ error: "Repair not found" });
+  if (repair.status !== "quoted") {
+    return res.status(409).json({ error: "Quote approval is only available when status is quoted" });
+  }
+
+  const sessionId = getCartSessionId(req);
+  const allowed =
+    (req.user && repair.userId === req.user.id) ||
+    (!!repair.sessionId && repair.sessionId === sessionId) ||
+    hasGrantedRepairAccess(req, repair.id);
+  if (!allowed) return res.status(403).json({ error: "Not allowed" });
+
+  const updates: Partial<typeof repairOrders.$inferInsert> = {
+    quoteDecision: parsed.data.decision,
+    updatedAt: new Date(),
+  };
+  if (parsed.data.decision === "declined") {
+    updates.status = "cancelled";
+  }
+
+  const [row] = await db
+    .update(repairOrders)
+    .set(updates)
+    .where(eq(repairOrders.id, repair.id))
+    .returning();
+
+  res.json({ repair: row });
 });
 
 export default router;

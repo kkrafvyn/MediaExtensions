@@ -12,6 +12,7 @@ import { ensureStoreConfig } from "../lib/storeConfig.js";
 import { initializeTransaction, isPaystackConfigured, verifyTransaction } from "../lib/paystack.js";
 import { paymentInstructions, shippingPesewasForRegion } from "../lib/utils.js";
 import { getCartSessionId, type AuthedRequest } from "../middleware/auth.js";
+import { grantOrderAccess } from "../services/guestLinking.js";
 
 const router = Router();
 
@@ -28,7 +29,9 @@ const checkoutSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1),
   phone: z.string().min(8),
-  paymentMethod: z.literal("paystack"),
+  fulfillmentMethod: z.enum(["digital", "delivery", "pickup"]).optional(),
+  paymentMethod: z.enum(["momo", "bank", "pickup", "pay_on_pickup", "paystack"]),
+  paymentNote: z.string().trim().max(200).optional(),
   shipping: shippingSchema.optional(),
 });
 
@@ -52,12 +55,23 @@ router.post("/", async (req: AuthedRequest, res) => {
     return res.status(400).json({ error: "Cart is empty" });
   }
 
-  if (cart.needsShipping && !parsed.data.shipping) {
+  const fulfillmentMethod = parsed.data.fulfillmentMethod ?? (
+    parsed.data.paymentMethod === "pickup" ? "pickup" : cart.needsShipping ? "delivery" : "digital"
+  );
+  const paymentMethod = parsed.data.paymentMethod === "pickup" ? "pay_on_pickup" : parsed.data.paymentMethod;
+  if ((cart.needsShipping && fulfillmentMethod === "digital") || (!cart.needsShipping && fulfillmentMethod !== "digital")) {
+    return res.status(400).json({ error: "Fulfillment choice does not match the items in your cart" });
+  }
+  if (paymentMethod === "pay_on_pickup" && fulfillmentMethod !== "pickup") {
+    return res.status(400).json({ error: "Pay on pickup requires in-store pickup" });
+  }
+  const requiresShipping = fulfillmentMethod === "delivery";
+  if (requiresShipping && !parsed.data.shipping) {
     return res.status(400).json({ error: "Shipping address required for delivery" });
   }
 
   const shippingPesewas =
-    cart.needsShipping && parsed.data.shipping
+    requiresShipping && parsed.data.shipping
       ? shippingPesewasForRegion(parsed.data.shipping.region)
       : 0;
 
@@ -65,7 +79,7 @@ router.post("/", async (req: AuthedRequest, res) => {
   const status = "pending_payment";
 
   const paystackReference =
-    parsed.data.paymentMethod === "paystack" ? `me_${nanoid(16)}` : null;
+    paymentMethod === "paystack" ? `me_${nanoid(16)}` : null;
 
   const productRows = await Promise.all(
     cart.items.map((line) =>
@@ -90,7 +104,7 @@ router.post("/", async (req: AuthedRequest, res) => {
   // Initialize online payment before consuming the cart. A provider failure leaves
   // the customer's basket intact so they can retry or choose another method.
   let paystackInit: Awaited<ReturnType<typeof initializeTransaction>> = null;
-  if (parsed.data.paymentMethod === "paystack" && paystackReference) {
+  if (paymentMethod === "paystack" && paystackReference) {
     try {
       paystackInit = await initializeTransaction({
         email: parsed.data.email.toLowerCase(),
@@ -117,13 +131,15 @@ router.post("/", async (req: AuthedRequest, res) => {
       phone: parsed.data.phone,
       name: parsed.data.name,
       status,
-      paymentMethod: parsed.data.paymentMethod,
+      fulfillmentMethod,
+      fulfillmentStatus: fulfillmentMethod === "digital" ? "not_required" : "unfulfilled",
+      paymentMethod,
       subtotalPesewas: cart.subtotalPesewas,
       shippingPesewas,
       totalPesewas,
       currency: "GHS",
-      shipping:
-        cart.needsShipping ? parsed.data.shipping ?? null : null,
+      shipping: requiresShipping ? parsed.data.shipping ?? null : null,
+      paymentNote: parsed.data.paymentNote || null,
       paystackReference,
     })
     .returning();
@@ -152,6 +168,7 @@ router.post("/", async (req: AuthedRequest, res) => {
   }
 
   await clearCart(cart.cartId);
+  grantOrderAccess(req, order.id);
   await notifyOrderEvent(order, "created");
 
   if (paystackInit) {
@@ -159,6 +176,7 @@ router.post("/", async (req: AuthedRequest, res) => {
         order: {
           id: order.id,
           status: order.status,
+          fulfillmentMethod: order.fulfillmentMethod,
           paymentMethod: order.paymentMethod,
           totalPesewas: order.totalPesewas,
           currency: order.currency,
@@ -175,6 +193,7 @@ router.post("/", async (req: AuthedRequest, res) => {
     order: {
       id: order.id,
       status: order.status,
+      fulfillmentMethod: order.fulfillmentMethod,
       paymentMethod: order.paymentMethod,
       totalPesewas: order.totalPesewas,
       currency: order.currency,
@@ -216,8 +235,8 @@ router.post("/paystack/verify", async (req, res) => {
       });
     }
 
-    if (verified.amount < order.totalPesewas) {
-      return res.status(402).json({ error: "Paid amount mismatch" });
+    if (verified.amount !== order.totalPesewas || verified.currency !== "GHS") {
+      return res.status(402).json({ error: "Paid amount or currency mismatch" });
     }
 
     const updated = await markOrderPaid(order.id);

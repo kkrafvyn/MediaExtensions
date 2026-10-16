@@ -14,8 +14,9 @@ Ghana storefront for digital products, physical gear, and GSM repairs.
 |------|--------|
 | Guest | Browse, bag, checkout, book repairs, track order by email |
 | Consumer | Account, order & repair history, downloads |
-| Manager | Products, orders, repair queue, analytics, uploads |
-| Admin | Everything + categories & users |
+| Technician | Repair queue and customer messages (no catalog or orders admin) |
+| Manager | Products, orders, repair queue, analytics, uploads (no price/settings write) |
+| Admin | Everything + categories, users, store settings, POS |
 
 ## Setup
 
@@ -36,7 +37,19 @@ npm run dev
 
 ### First administrator
 
-Set `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD` (at least 12 characters), then run `npm run db:seed`. Products, services, categories, prices, and staff users are created in the staff console. No sample accounts, downloads, catalog entries, or repair data are added.
+Set `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD` (at least 12 characters), then run `npm run db:seed`. Products, services, categories, prices, and staff users are created in the staff console. No sample catalog, orders, or repair tickets are inserted by seed.
+
+### Reset catalog (remove all products/services/categories)
+
+Orders and repair history are kept. Take a backup first (`npm run backup`).
+
+```bash
+# PowerShell
+$env:PURGE_CATALOG_CONFIRM="1"
+npm run db:purge-catalog
+```
+
+Then re-add categories, products, and repair services in the staff console.
 
 ## Flow
 

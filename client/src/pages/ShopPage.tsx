@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { ProductCard } from "../components/ProductCard";
@@ -10,8 +10,8 @@ type SortOption = "featured" | "price-asc" | "price-desc" | "name-asc";
 
 const FORMAT_OPTIONS = [
   { value: "", label: "All" },
-  { value: "digital", label: "Digital" },
-  { value: "physical", label: "Physical" },
+  { value: "digital", label: "Downloads" },
+  { value: "physical", label: "Equipment" },
   { value: "both", label: "Bundles" },
 ] as const;
 
@@ -20,26 +20,35 @@ export function ShopPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [qInput, setQInput] = useState(params.get("q") ?? "");
-  const [sortBy, setSortBy] = useState<SortOption>("featured");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [filterError, setFilterError] = useState(false);
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
-  const [page, setPage] = useState(1);
+  const [retryCount, setRetryCount] = useState(0);
+  const parsedPage = Number(params.get("page") ?? 1);
+  const page = Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
   const [pagination, setPagination] = useState({ page: 1, limit: 12, total: 0, totalPages: 1 });
 
   const category = params.get("category") ?? "";
   const fulfillment = params.get("fulfillment") ?? "";
   const q = params.get("q") ?? "";
+  const sortParam = params.get("sort");
+  const sortBy: SortOption = sortParam === "price-asc" || sortParam === "price-desc" || sortParam === "name-asc"
+    ? sortParam
+    : "featured";
 
   useEffect(() => {
-    setPage(1);
-  }, [category, fulfillment, q]);
+    setQInput(q);
+  }, [q]);
 
   useEffect(() => {
+    let cancelled = false;
+    setFilterError(false);
     api<{ categories: Category[] }>("/api/products/categories")
-      .then((d) => setCategories(d.categories.filter((c) => c.slug !== "gsm-repairs")))
-      .catch(() => setError("We couldn’t load the shop filters. Please refresh and try again."));
-  }, []);
+      .then((d) => { if (!cancelled) setCategories(d.categories.filter((c) => c.slug !== "gsm-repairs")); })
+      .catch(() => { if (!cancelled) setFilterError(true); });
+    return () => { cancelled = true; };
+  }, [retryCount]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -49,17 +58,20 @@ export function ShopPage() {
         if (nextQ === (prev.get("q") ?? "")) return prev;
         if (nextQ) next.set("q", nextQ);
         else next.delete("q");
+        next.delete("page");
         return next;
-      });
+      }, { replace: true });
     }, 250);
     return () => window.clearTimeout(handle);
   }, [qInput, setParams]);
 
   useEffect(() => {
+    let cancelled = false;
     const qs = new URLSearchParams();
     if (category) qs.set("category", category);
     if (fulfillment) qs.set("fulfillment", fulfillment);
     if (q) qs.set("q", q);
+    qs.set("sort", sortBy);
     qs.set("page", String(page));
     qs.set("limit", "12");
 
@@ -68,17 +80,20 @@ export function ShopPage() {
 
     api<{ products: Product[]; pagination?: typeof pagination }>(`/api/products?${qs}`)
       .then((d) => {
+        if (cancelled) return;
         setProducts(d.products);
-        if (d.pagination) setPagination(d.pagination);
+        setPagination(d.pagination ?? { page: 1, limit: 12, total: d.products.length, totalPages: 1 });
       })
-      .catch(() => setError("We couldn’t load products right now. Please try again."))
-      .finally(() => setLoading(false));
-  }, [category, fulfillment, q, page]);
+      .catch(() => { if (!cancelled) setError("We couldn’t load products right now. Please try again."); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [category, fulfillment, q, sortBy, page, retryCount]);
 
   function updateParam(key: string, value: string) {
     const next = new URLSearchParams(params);
     if (value) next.set(key, value);
     else next.delete(key);
+    if (key !== "page") next.delete("page");
     setParams(next);
   }
 
@@ -86,20 +101,6 @@ export function ShopPage() {
     setQInput("");
     setParams(new URLSearchParams());
   }
-
-  const sortedProducts = useMemo(() => {
-    const list = [...products];
-    if (sortBy === "featured") {
-      list.sort((a, b) => Number(b.featured) - Number(a.featured) || a.name.localeCompare(b.name));
-    } else if (sortBy === "price-asc") {
-      list.sort((a, b) => a.pricePesewas - b.pricePesewas);
-    } else if (sortBy === "price-desc") {
-      list.sort((a, b) => b.pricePesewas - a.pricePesewas);
-    } else if (sortBy === "name-asc") {
-      list.sort((a, b) => a.name.localeCompare(b.name));
-    }
-    return list;
-  }, [products, sortBy]);
 
   const activeCategoryName = categories.find((c) => c.slug === category)?.name;
   const hasFilters = Boolean(category || fulfillment || q);
@@ -109,9 +110,11 @@ export function ShopPage() {
       <header className="shop-hero">
         <div className="container shop-hero-inner">
           <p className="eyebrow">Media Extensions · Store</p>
-          <h1>Shop.</h1>
-          <p className="lede">
-            Digital downloads and physical gear for creators — priced in Ghana cedis.
+          <h1 style={{ fontSize: "clamp(2.4rem, 5.5vw, 3.75rem)", letterSpacing: "-0.04em" }}>
+            Find your next tool.
+          </h1>
+          <p className="lede" style={{ maxWidth: "36rem", marginTop: "0.5rem" }}>
+            Browse digital assets, camera equipment, and audio gear. All prices in Ghana cedis.
           </p>
         </div>
       </header>
@@ -146,7 +149,7 @@ export function ShopPage() {
               <span className="shop-sort-label">Sort</span>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                onChange={(e) => updateParam("sort", e.target.value === "featured" ? "" : e.target.value)}
                 aria-label="Sort products"
               >
                 <option value="featured">Featured</option>
@@ -159,6 +162,7 @@ export function ShopPage() {
         </div>
 
         <div className="shop-filters">
+          {filterError && <p className="meta" role="status">Category filters are unavailable. <button type="button" className="shop-clear-link" onClick={() => setRetryCount((value) => value + 1)}>Try again</button></p>}
           <div className="shop-filter-group" role="group" aria-label="Product format">
             {FORMAT_OPTIONS.map((opt) => (
               <button
@@ -166,6 +170,7 @@ export function ShopPage() {
                 type="button"
                 className={`shop-chip ${fulfillment === opt.value ? "active" : ""}`}
                 onClick={() => updateParam("fulfillment", opt.value)}
+                aria-pressed={fulfillment === opt.value}
               >
                 {opt.label}
               </button>
@@ -178,6 +183,7 @@ export function ShopPage() {
                 type="button"
                 className={`shop-chip ${!category ? "active" : ""}`}
                 onClick={() => updateParam("category", "")}
+                aria-pressed={!category}
               >
                 All categories
               </button>
@@ -187,6 +193,7 @@ export function ShopPage() {
                   type="button"
                   className={`shop-chip ${category === c.slug ? "active" : ""}`}
                   onClick={() => updateParam("category", c.slug)}
+                  aria-pressed={category === c.slug}
                 >
                   {c.name}
                 </button>
@@ -195,15 +202,16 @@ export function ShopPage() {
           )}
         </div>
 
-        <div className="shop-results-meta">
+        <div className="shop-results-meta" role="status" aria-live="polite">
+          {loading && <p>Loading products…</p>}
           {!loading && !error && (
             <p>
               {pagination.total === 0
                 ? "No products"
                 : (
                   <>
-                    <strong>{sortedProducts.length}</strong>
-                    {pagination.total > sortedProducts.length
+                    <strong>{products.length}</strong>
+                    {pagination.total > products.length
                       ? ` of ${pagination.total}`
                       : ""}{" "}
                     product{pagination.total === 1 ? "" : "s"}
@@ -221,17 +229,17 @@ export function ShopPage() {
         </div>
 
         {error ? (
-          <div className="alert-banner">{error}</div>
+          <div className="shop-empty" role="alert"><h2>Unable to load the catalog</h2><p>{error}</p><button type="button" className="btn btn-primary" onClick={() => setRetryCount((value) => value + 1)}>Try again</button></div>
         ) : loading ? (
           <div className="product-grid shop-grid">
             {Array.from({ length: 8 }, (_, i) => (
               <div className="product-skeleton" key={i} />
             ))}
           </div>
-        ) : sortedProducts.length > 0 ? (
+        ) : products.length > 0 ? (
           <>
             <div className="product-grid shop-grid">
-              {sortedProducts.map((p, index) => (
+              {products.map((p, index) => (
                 <ProductCard
                   key={p.id}
                   product={p}
@@ -247,7 +255,7 @@ export function ShopPage() {
                   className="btn btn-light btn-sm"
                   type="button"
                   disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  onClick={() => updateParam("page", String(Math.max(1, page - 1)))}
                 >
                   Previous
                 </button>
@@ -258,7 +266,7 @@ export function ShopPage() {
                   className="btn btn-light btn-sm"
                   type="button"
                   disabled={page >= pagination.totalPages}
-                  onClick={() => setPage((p) => p + 1)}
+                  onClick={() => updateParam("page", String(page + 1))}
                 >
                   Next
                 </button>
@@ -274,15 +282,15 @@ export function ShopPage() {
             <p>
               {hasFilters
                 ? "Try a different search or clear filters to see everything."
-                : "Products added in the staff console will appear here."}
+                : "The catalog is being updated. You can still browse our repair services."}
             </p>
             {hasFilters ? (
               <button className="btn btn-dark" type="button" onClick={resetFilters}>
                 Clear filters
               </button>
             ) : (
-              <Link to="/" className="btn btn-light">
-                Back home
+              <Link to="/repairs" className="btn btn-light">
+                View repair services
               </Link>
             )}
           </div>

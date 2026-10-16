@@ -1,4 +1,51 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <rect width="32" height="32" rx="8" fill="#1d1d1f"/>
-  <path d="M8.5 22.5V9.5h3.1l3.5 9.3 3.5-9.3H21.7v13h-2.7V13.3L15.7 22.5h-2.1L10.3 13.3v9.2H8.5z" fill="#fff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bg-grad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#1c1c1e"/>
+      <stop offset="100%" stopColor="#0a0a0c"/>
+    </linearGradient>
+
+    <!-- Red Loop Gradient -->
+    <linearGradient id="red-loop" x1="12" y1="18" x2="34" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#ff453a"/>
+      <stop offset="45%" stopColor="#e63946"/>
+      <stop offset="100%" stopColor="#9e1b24"/>
+    </linearGradient>
+
+    <!-- Blue Loop Gradient -->
+    <linearGradient id="blue-loop" x1="30" y1="18" x2="52" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#38bdf8"/>
+      <stop offset="55%" stopColor="#0071e3"/>
+      <stop offset="100%" stopColor="#1d4ed8"/>
+    </linearGradient>
+
+    <!-- 3D Specular Highlight -->
+    <linearGradient id="highlight" x1="16" y1="16" x2="48" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#ffffff" stopOpacity="0.6"/>
+      <stop offset="50%" stopColor="#ffffff" stopOpacity="0"/>
+    </linearGradient>
+
+    <!-- Subtle Drop Shadow -->
+    <filter id="shadow" x="6" y="8" width="52" height="52" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- Apple squircle tile -->
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="url(#bg-grad)" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
+
+  <!-- Infinity / M Emblem -->
+  <g filter="url(#shadow)">
+    <!-- Left Red Loop -->
+    <path d="M 23 18 C 16 18 12 24 12 32 C 12 40 17 46 24 46 C 29 46 33 42 37 36 L 27 24 C 25 20 24 18 23 18 Z" fill="url(#red-loop)"/>
+    <path d="M 23 24 C 20 24 18 27 18 32 C 18 37 20 40 23 40 C 26 40 28 37 31 33 L 27 28 C 26 25 25 24 23 24 Z" fill="#0a0a0c" opacity="0.95"/>
+
+    <!-- Right Blue Loop -->
+    <path d="M 41 18 C 36 18 31 22 27 28 L 37 40 C 39 44 41 46 43 46 C 49 46 52 40 52 32 C 52 24 48 18 41 18 Z" fill="url(#blue-loop)"/>
+    <path d="M 41 24 C 43 24 44 26 45 28 L 41 33 C 38 37 36 40 33 40 C 31 40 30 39 30 38 L 35 30 C 38 26 40 24 41 24 Z" fill="#0a0a0c" opacity="0.95"/>
+
+    <!-- Crossing Bridge -->
+    <path d="M 27 28 L 37 40 C 35 43 32 45 29 45 L 21 34 Z" fill="url(#red-loop)" opacity="0.9"/>
+  </g>
 </svg>

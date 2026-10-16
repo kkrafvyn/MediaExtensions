@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { api, formatGhs } from "../lib/api";
 import { FulfillmentBadge } from "../components/Icons";
 import type { PaymentInfo } from "../types";
@@ -8,10 +8,25 @@ type OrderResponse = {
   order: {
     id: string;
     status: string;
+    fulfillmentMethod?: "digital" | "delivery" | "pickup";
+    fulfillmentStatus?: string;
     paymentMethod: string;
+    trackingCarrier?: string | null;
+    trackingNumber?: string | null;
+    trackingUrl?: string | null;
+    fulfilledAt?: string | null;
     totalPesewas: number;
     email: string;
     name: string;
+    shipping?: { fullName?: string; street?: string; city?: string; region?: string } | null;
+    returns?: Array<{
+      id: string;
+      status: string;
+      reason: string;
+      decisionNotes?: string | null;
+      refundPesewas?: number | null;
+      refundReference?: string | null;
+    }>;
     items: Array<{ name: string; quantity: number; unitPricePesewas: number }>;
   };
   downloads: Array<{ token: string; productName: string }>;
@@ -19,20 +34,40 @@ type OrderResponse = {
 
 export function OrderPage() {
   const { id } = useParams();
-  const [searchParams] = useSearchParams();
   const [data, setData] = useState<OrderResponse | null>(null);
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
   const [error, setError] = useState("");
+  const [returnReason, setReturnReason] = useState("damaged");
+  const [returnDetails, setReturnDetails] = useState("");
+  const [returnError, setReturnError] = useState("");
+  const [returnSubmitting, setReturnSubmitting] = useState(false);
+  const [returnRequest, setReturnRequest] = useState<OrderResponse["order"]["returns"] extends (infer T)[] | undefined ? T | null : null>(null);
 
   useEffect(() => {
     if (!id) return;
-    const email = searchParams.get("email");
-    const qs = email ? `?email=${encodeURIComponent(email)}` : "";
-    api<OrderResponse>(`/api/orders/${id}${qs}`)
-      .then(setData)
-      .catch((e) => setError(e.message));
+    function loadOrder() {
+      return api<OrderResponse>(`/api/orders/${id}`)
+        .then(setData)
+        .catch((e) => setError(e.message));
+    }
+
+    void loadOrder();
     api<PaymentInfo>("/api/checkout/payment-info").then(setPaymentInfo).catch(() => undefined);
-  }, [id, searchParams]);
+
+    const poll = window.setInterval(() => {
+      void api<OrderResponse>(`/api/orders/${id}`)
+        .then((next) => {
+          setData(next);
+          const s = next.order.status;
+          if (s !== "pending_payment" && s !== "awaiting_pickup") {
+            window.clearInterval(poll);
+          }
+        })
+        .catch(() => undefined);
+    }, 8000);
+
+    return () => window.clearInterval(poll);
+  }, [id]);
 
   if (error) {
     return (
@@ -55,6 +90,34 @@ export function OrderPage() {
 
   const { order, downloads } = data;
   const isPaid = order.status === "paid" || order.status === "fulfilled";
+  const fulfillmentMethod = order.fulfillmentMethod ?? (
+    order.paymentMethod === "pickup" ? "pickup" : order.shipping ? "delivery" : "digital"
+  );
+  const existingReturn = returnRequest ?? order.returns?.[0] ?? null;
+  const returnEligible = order.status === "fulfilled"
+    && fulfillmentMethod !== "digital"
+    && (order.fulfillmentStatus === "delivered" || order.fulfillmentStatus === "collected")
+    && Boolean(order.fulfilledAt)
+    && Date.now() <= new Date(order.fulfilledAt!).getTime() + 7 * 24 * 60 * 60 * 1000
+    && !existingReturn;
+
+  async function submitReturn(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setReturnSubmitting(true);
+    setReturnError("");
+    try {
+      const response = await api<{ returnRequest: NonNullable<OrderResponse["order"]["returns"]>[number] }>(`/api/orders/${order.id}/returns`, {
+        method: "POST",
+        body: JSON.stringify({ email: order.email, reason: returnReason, details: returnDetails }),
+      });
+      setReturnRequest(response.returnRequest);
+      setReturnDetails("");
+    } catch (err) {
+      setReturnError(err instanceof Error ? err.message : "Could not submit return request");
+    } finally {
+      setReturnSubmitting(false);
+    }
+  }
 
   return (
     <div className="page container" style={{ maxWidth: 840 }}>
@@ -81,8 +144,8 @@ export function OrderPage() {
         <div
           className="panel"
           style={{
-            background: "linear-gradient(135deg, #0d1713 0%, #172a22 100%)",
-            color: "white",
+            background: "var(--emerald-soft)",
+            color: "var(--ink)",
             marginBottom: "2rem",
             border: "1px solid rgba(255, 255, 255, 0.15)",
           }}
@@ -92,10 +155,10 @@ export function OrderPage() {
               <FulfillmentBadge fulfillment="digital" variant="downloads" />
             </span>
           </div>
-          <h3 style={{ color: "white", fontSize: "1.3rem", margin: "0.25rem 0 1rem" }}>
+          <h3 style={{ color: "var(--ink)", fontSize: "1.3rem", margin: "0.25rem 0 1rem" }}>
             Your Digital Creator Assets
           </h3>
-          <p style={{ color: "rgba(255, 255, 255, 0.8)", fontSize: "0.92rem", marginBottom: "1.5rem" }}>
+          <p style={{ color: "var(--ink-sec)", fontSize: "0.92rem", marginBottom: "1.5rem" }}>
             Click below to download your packs (.zip files containing presets, LUTs, and licenses).
           </p>
 
@@ -107,7 +170,7 @@ export function OrderPage() {
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  background: "rgba(255, 255, 255, 0.08)",
+                  background: "var(--surface-hover)",
                   padding: "0.85rem 1.2rem",
                   borderRadius: "var(--radius-sm)",
                   flexWrap: "wrap",
@@ -115,8 +178,8 @@ export function OrderPage() {
                 }}
               >
                 <div>
-                  <strong style={{ color: "#ffffff", display: "block" }}>{d.productName}</strong>
-                  <span style={{ fontSize: "0.78rem", color: "rgba(255, 255, 255, 0.6)" }}>
+                  <strong style={{ color: "var(--ink)", display: "block" }}>{d.productName}</strong>
+                  <span style={{ fontSize: "0.78rem", color: "var(--muted)" }}>
                     Direct secure download key active
                   </span>
                 </div>
@@ -138,6 +201,38 @@ export function OrderPage() {
           </div>
         </div>
       )}
+
+      {existingReturn ? (
+        <div className="panel stack" style={{ marginBottom: "2rem" }}>
+          <h2 style={{ fontSize: "1.15rem", margin: 0 }}>Return request · {existingReturn.status.replaceAll("_", " ")}</h2>
+          <p className="meta" style={{ margin: 0 }}>Reason: {existingReturn.reason.replaceAll("_", " ")}</p>
+          {existingReturn.decisionNotes && <p className="meta" style={{ margin: 0 }}>{existingReturn.decisionNotes}</p>}
+          {existingReturn.status === "refunded" && existingReturn.refundPesewas != null && (
+            <p className="meta" style={{ margin: 0 }}>Refund recorded: {formatGhs(existingReturn.refundPesewas)}{existingReturn.refundReference ? ` · ${existingReturn.refundReference}` : ""}</p>
+          )}
+        </div>
+      ) : returnEligible ? (
+        <form className="panel stack" style={{ marginBottom: "2rem" }} onSubmit={submitReturn}>
+          <h2 style={{ fontSize: "1.15rem", margin: 0 }}>Request a return</h2>
+          <p className="meta" style={{ margin: 0 }}>Eligible unused physical items may be returned within 7 days of delivery or pickup. Staff will review your request.</p>
+          <label>
+            Reason
+            <select value={returnReason} onChange={(event) => setReturnReason(event.target.value)}>
+              <option value="damaged">Arrived damaged</option>
+              <option value="incorrect_item">Incorrect item</option>
+              <option value="not_as_described">Not as described</option>
+              <option value="changed_mind">Changed my mind</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label>
+            Details
+            <textarea rows={3} minLength={10} maxLength={2000} required value={returnDetails} onChange={(event) => setReturnDetails(event.target.value)} placeholder="Describe the item condition and what outcome you are requesting." />
+          </label>
+          {returnError && <div className="alert-banner" role="alert">{returnError}</div>}
+          <button className="btn btn-primary" type="submit" disabled={returnSubmitting}>{returnSubmitting ? "Sending request…" : "Submit return request"}</button>
+        </form>
+      ) : null}
 
       <div className="split split-2">
         {/* Left: Purchased Items */}
@@ -177,6 +272,30 @@ export function OrderPage() {
             <span>Payment Method</span>
             <strong style={{ textTransform: "capitalize" }}>{order.paymentMethod}</strong>
           </div>
+          <div className="line-item">
+            <span>Fulfillment</span>
+            <strong style={{ textTransform: "capitalize" }}>{fulfillmentMethod}</strong>
+          </div>
+          {order.fulfillmentStatus && order.fulfillmentStatus !== "not_required" && (
+            <div className="line-item">
+              <span>Fulfillment progress</span>
+              <strong style={{ textTransform: "capitalize" }}>{order.fulfillmentStatus.replaceAll("_", " ")}</strong>
+            </div>
+          )}
+          {order.fulfillmentMethod === "delivery" && (order.trackingNumber || order.trackingUrl) && (
+            <div className="meta">
+              {order.trackingCarrier ? `${order.trackingCarrier} · ` : ""}
+              {order.trackingNumber ? `Tracking ${order.trackingNumber}` : ""}
+              {order.trackingUrl && <> · <a href={order.trackingUrl} target="_blank" rel="noreferrer">Track shipment</a></>}
+            </div>
+          )}
+          {fulfillmentMethod === "pickup" && paymentInfo?.pickup && (
+            <div className="meta">
+              Pickup at <strong>{paymentInfo.pickup.name}</strong>, {paymentInfo.pickup.address}
+              {paymentInfo.pickup.landmark ? ` · ${paymentInfo.pickup.landmark}` : ""}
+              {paymentInfo.pickup.hours ? ` · ${paymentInfo.pickup.hours}` : ""}
+            </div>
+          )}
 
           {(order.status === "pending_payment" || order.status === "awaiting_pickup") && (
             <div style={{ background: "var(--bg)", padding: "1rem", borderRadius: "var(--radius-sm)", marginTop: "0.5rem" }}>
@@ -195,9 +314,9 @@ export function OrderPage() {
                   <strong>{paymentInfo.bank.accountNumber}</strong> ({paymentInfo.bank.accountName}).
                 </p>
               )}
-              {order.paymentMethod === "pickup" && (
+              {order.paymentMethod === "pay_on_pickup" && fulfillmentMethod === "pickup" && (
                 <p className="meta" style={{ fontSize: "0.85rem", lineHeight: 1.5 }}>
-                  Pay cash or MoMo upon collection at our Accra hub.
+                  Pay by cash or MoMo when you collect your order.
                 </p>
               )}
             </div>

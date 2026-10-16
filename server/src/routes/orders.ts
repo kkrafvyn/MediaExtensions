@@ -1,11 +1,15 @@
 import { Router } from "express";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/index.js";
-import { orders } from "../db/schema.js";
+import { orderReturns, orders } from "../db/schema.js";
 import { getCartSessionId, requireAuth, type AuthedRequest } from "../middleware/auth.js";
+import { canViewOrderAsCustomer } from "../lib/orderAccess.js";
+import { grantOrderAccess } from "../services/guestLinking.js";
 import { getOrderDownloads } from "../services/orders.js";
 import { formatGhs, paymentInstructions } from "../lib/utils.js";
+import { isPhysicalReturnEligible } from "../lib/orderTransitions.js";
+import { notifyReturnUpdate } from "../lib/notify.js";
 
 const router = Router();
 
@@ -58,6 +62,8 @@ router.post("/track", async (req, res) => {
     return res.status(404).json({ error: "Order not found" });
   }
 
+  grantOrderAccess(req, order.id);
+
   const downloads =
     order.status === "paid" || order.status === "fulfilled"
       ? await getOrderDownloads(order.id)
@@ -67,7 +73,12 @@ router.post("/track", async (req, res) => {
     order: {
       id: order.id,
       status: order.status,
+      fulfillmentMethod: order.fulfillmentMethod,
+      fulfillmentStatus: order.fulfillmentStatus,
       paymentMethod: order.paymentMethod,
+      trackingCarrier: order.trackingCarrier,
+      trackingNumber: order.trackingNumber,
+      trackingUrl: order.trackingUrl,
       subtotalPesewas: order.subtotalPesewas,
       shippingPesewas: order.shippingPesewas,
       totalPesewas: order.totalPesewas,
@@ -84,6 +95,60 @@ router.post("/track", async (req, res) => {
   });
 });
 
+router.post("/:id/returns", async (req: AuthedRequest, res) => {
+  const schema = z.object({
+    email: z.string().email().optional(),
+    reason: z.enum(["damaged", "incorrect_item", "not_as_described", "changed_mind", "other"]),
+    details: z.string().trim().min(10).max(2000),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Enter a return reason and at least 10 characters of detail" });
+
+  const order = await db.query.orders.findFirst({ where: eq(orders.id, req.params.id) });
+  if (!order) return res.status(404).json({ error: "Order not found" });
+  const sessionId = getCartSessionId(req);
+  const suppliedEmail = parsed.data.email?.toLowerCase();
+  const isOwner = (req.user && order.userId === req.user.id)
+    || (!!order.sessionId && order.sessionId === sessionId)
+    || (suppliedEmail && suppliedEmail === order.email.toLowerCase());
+  if (!isOwner) return res.status(403).json({ error: "Not allowed to request a return for this order" });
+
+  if (!isPhysicalReturnEligible(order)) {
+    return res.status(409).json({ error: "Returns are available for delivered or collected physical orders within 7 days" });
+  }
+
+  const activeRequest = await db.query.orderReturns.findFirst({
+    where: and(eq(orderReturns.orderId, order.id), inArray(orderReturns.status, [
+      "requested",
+      "approved",
+      "refund_pending",
+      "refund_processing",
+      "refund_needs_attention",
+      "refund_failed",
+      "refunded",
+    ])),
+  });
+  if (activeRequest) return res.status(409).json({ error: "A return request already exists for this order" });
+
+  const [returnRequest] = await db.insert(orderReturns).values({
+    orderId: order.id,
+    requestedByUserId: req.user?.id ?? null,
+    reason: parsed.data.reason,
+    details: parsed.data.details,
+  }).returning();
+  void notifyReturnUpdate({
+    id: returnRequest.id,
+    orderId: order.id,
+    email: order.email,
+    name: order.name,
+    phone: order.phone,
+    reason: returnRequest.reason,
+    details: returnRequest.details,
+    status: returnRequest.status,
+  }).catch((err) => console.error("[notify:return] request failed", err));
+  res.status(201).json({ returnRequest });
+});
+
 router.get("/:id/receipt", async (req: AuthedRequest, res) => {
   const order = await db.query.orders.findFirst({
     where: eq(orders.id, req.params.id),
@@ -93,15 +158,7 @@ router.get("/:id/receipt", async (req: AuthedRequest, res) => {
     return res.status(404).json({ error: "Order not found" });
   }
 
-  const sessionId = getCartSessionId(req);
-  const isOwner =
-    (req.user && order.userId === req.user.id) ||
-    (!!order.sessionId && order.sessionId === sessionId) ||
-    (req.user && (req.user.role === "admin" || req.user.role === "manager")) ||
-    (typeof req.query.email === "string" &&
-      req.query.email.toLowerCase() === order.email.toLowerCase());
-
-  if (!isOwner) {
+  if (!canViewOrderAsCustomer(req, order)) {
     return res.status(403).json({ error: "Not allowed to view this receipt" });
   }
 
@@ -111,7 +168,12 @@ router.get("/:id/receipt", async (req: AuthedRequest, res) => {
       brand: "Media Extensions",
       orderId: order.id,
       status: order.status,
+      fulfillmentMethod: order.fulfillmentMethod,
+      fulfillmentStatus: order.fulfillmentStatus,
       paymentMethod: order.paymentMethod,
+      trackingCarrier: order.trackingCarrier,
+      trackingNumber: order.trackingNumber,
+      trackingUrl: order.trackingUrl,
       customer: {
         name: order.name,
         email: order.email,
@@ -142,22 +204,13 @@ router.get("/:id/receipt", async (req: AuthedRequest, res) => {
 router.get("/:id", async (req: AuthedRequest, res) => {
   const order = await db.query.orders.findFirst({
     where: eq(orders.id, req.params.id),
-    with: { items: { with: { downloadTokens: true } } },
+    with: { items: { with: { downloadTokens: true } }, returns: true },
   });
   if (!order) {
     return res.status(404).json({ error: "Order not found" });
   }
 
-  const sessionId = getCartSessionId(req);
-  const emailQuery =
-    typeof req.query.email === "string" ? req.query.email.toLowerCase() : "";
-  const isOwner =
-    (req.user && order.userId === req.user.id) ||
-    (!!order.sessionId && order.sessionId === sessionId) ||
-    (req.user && (req.user.role === "admin" || req.user.role === "manager")) ||
-    (emailQuery && emailQuery === order.email.toLowerCase());
-
-  if (!isOwner) {
+  if (!canViewOrderAsCustomer(req, order)) {
     return res.status(403).json({ error: "Not allowed to view this order" });
   }
 

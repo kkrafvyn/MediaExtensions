@@ -26,7 +26,7 @@ const ROUTE_TITLES: Array<{ match: RegExp; title: string }> = [
   { match: /^\/privacy/, title: "Privacy Policy" },
   { match: /^\/terms/, title: "Terms of Service" },
   { match: /^\/faq/, title: "FAQ" },
-  { match: /^\/pickup/, title: "Accra Pickup" },
+  { match: /^\/pickup/, title: "Pickup · Koforidua" },
   { match: /^\/login/, title: "Sign In" },
   { match: /^\/register/, title: "Create Account" },
   { match: /^\/forgot-password/, title: "Forgot Password" },

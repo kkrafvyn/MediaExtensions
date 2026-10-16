@@ -1,5 +1,15 @@
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
+export class ApiError extends Error {
+  details?: unknown;
+
+  constructor(message: string, details?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.details = details;
+  }
+}
+
 export async function api<T = unknown>(
   path: string,
   options: RequestInit = {},
@@ -17,7 +27,8 @@ export async function api<T = unknown>(
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error((data as { error?: string }).error ?? "Request failed");
+    const body = data as { error?: string; details?: unknown };
+    throw new ApiError(body.error ?? "Request failed", body.details);
   }
   return data as T;
 }

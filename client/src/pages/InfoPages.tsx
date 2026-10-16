@@ -1,7 +1,7 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../lib/api";
-import type { SiteMeta } from "../types";
+import { api, formatGhs } from "../lib/api";
+import { useSiteMeta } from "../context/SiteMetaContext";
 
 function InfoPage({
   title,
@@ -34,7 +34,7 @@ export function AboutPage() {
   return (
     <InfoPage
       title="About"
-      lede="Media Extensions is an Accra-based shop for creators — presets, plugins, camera accessories, and reliable GSM repairs."
+      lede="Media Extensions is a Koforidua-based shop for creators — presets, plugins, camera accessories, and reliable GSM repairs."
     >
       <InfoSection title="What we do">
         <p>
@@ -49,8 +49,8 @@ export function AboutPage() {
       </InfoSection>
       <InfoSection title="Where we are">
         <p>
-          Based in Accra with pickup for physical orders and repairs. Delivery is available across
-          Greater Accra and other regions — see <Link to="/shipping">Shipping</Link> and{" "}
+          Based in Koforidua with pickup for physical orders and repairs. Delivery is available
+          across Ghana — see <Link to="/shipping">Shipping</Link> and{" "}
           <Link to="/pickup">Pickup & location</Link>.
         </p>
       </InfoSection>
@@ -66,13 +66,7 @@ export function ContactPage() {
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [error, setError] = useState("");
-  const [meta, setMeta] = useState<SiteMeta | null>(null);
-
-  useEffect(() => {
-    api<SiteMeta>("/api/meta")
-      .then(setMeta)
-      .catch(() => undefined);
-  }, []);
+  const { meta } = useSiteMeta();
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -169,6 +163,11 @@ export function ContactPage() {
 }
 
 export function ShippingPage() {
+  const { meta } = useSiteMeta();
+  const accra = meta?.shipping.accraPesewas ?? 2500;
+  const other = meta?.shipping.otherPesewas ?? 4500;
+  const pickupName = meta?.pickup?.name?.trim() || "our Koforidua pickup point";
+
   return (
     <InfoPage
       title="Shipping"
@@ -176,12 +175,15 @@ export function ShippingPage() {
     >
       <InfoSection title="Rates">
         <p>
-          <strong>Greater Accra:</strong> ₵25 flat for physical items.
+          <strong>Greater Accra:</strong> {formatGhs(accra)} flat for physical items.
         </p>
         <p>
-          <strong>Other regions:</strong> ₵45 flat.
+          <strong>Other regions:</strong> {formatGhs(other)} flat.
         </p>
-        <p>Pickup in Accra is free — choose “Pay on pickup” at checkout.</p>
+        <p>
+          Pickup at {pickupName} is free — choose “Pay on pickup” at checkout, or pay online with
+          Paystack.
+        </p>
       </InfoSection>
       <InfoSection title="Timing">
         <p>
@@ -264,7 +266,7 @@ export function TermsPage() {
       <InfoSection title="Orders">
         <p>
           Placing an order creates a request to purchase at the listed Ghana cedi price. Payment
-          methods are Mobile Money, bank transfer, or pay on pickup. Ownership of digital files
+          methods are Paystack (card/MoMo), Mobile Money, bank transfer, or pay on pickup. Ownership of digital files
           transfers after payment is confirmed by staff; physical goods remain ours until paid.
         </p>
       </InfoSection>
@@ -299,7 +301,7 @@ export function FaqPage() {
     },
     {
       q: "How do I pay?",
-      a: "Mobile Money, bank transfer, or cash/MoMo on pickup. Staff marks the order paid after confirming funds — then digital downloads unlock.",
+      a: "Paystack (card or MoMo), Mobile Money, bank transfer, or cash/MoMo on pickup. Online Paystack payments confirm automatically; offline methods are marked paid by staff — then digital downloads unlock.",
     },
     {
       q: "Where do I download LUTs and plugins?",
@@ -330,17 +332,11 @@ export function FaqPage() {
 }
 
 export function PickupPage() {
-  const [meta, setMeta] = useState<SiteMeta | null>(null);
-
-  useEffect(() => {
-    api<SiteMeta>("/api/meta")
-      .then(setMeta)
-      .catch(() => undefined);
-  }, []);
+  const { meta } = useSiteMeta();
 
   const address =
-    meta?.pickup?.address ??
-    "Near Airport Residential Area (exact landmark shared after order confirmation).";
+    meta?.pickup?.address?.trim() ||
+    "Kumasi Station, Koforidua (landmark details shared after order confirmation).";
   const landmark = meta?.pickup?.landmark;
   const hours = meta?.pickup?.hours ?? "Monday–Saturday, 9:00–18:00 GMT. Closed public holidays.";
   const phone = meta?.storePhone ?? meta?.storeWhatsApp;
@@ -353,7 +349,7 @@ export function PickupPage() {
     >
       <InfoSection title="Location">
         <p>
-          <strong>Media Extensions — {meta?.pickup?.city ?? "Accra"}</strong>
+          <strong>{meta?.pickup?.name?.trim() || "Media Extensions — Koforidua"}</strong>
           <br />
           {address}
           {landmark ? (

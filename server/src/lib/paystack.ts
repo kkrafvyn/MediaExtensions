@@ -98,3 +98,45 @@ export async function verifyTransaction(
 
   return json.data;
 }
+
+export type PaystackRefundResult = {
+  id?: number;
+  status?: string;
+  refund_reference?: string | null;
+  transaction_reference?: string;
+};
+
+export async function initiateRefund(opts: {
+  transactionReference: string;
+  amountPesewas: number;
+  customerNote: string;
+  merchantNote: string;
+}): Promise<PaystackRefundResult> {
+  const key = secretKey();
+  if (!key) throw new Error("Paystack is not configured");
+
+  const res = await fetch(`${PAYSTACK_BASE}/refund`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      transaction: opts.transactionReference,
+      amount: opts.amountPesewas,
+      currency: "GHS",
+      customer_note: opts.customerNote,
+      merchant_note: opts.merchantNote,
+    }),
+  });
+
+  const json = (await res.json()) as {
+    status: boolean;
+    message: string;
+    data?: PaystackRefundResult;
+  };
+  if (!res.ok || !json.status || !json.data) {
+    throw new Error(json.message || "Paystack refund could not be queued");
+  }
+  return json.data;
+}

@@ -209,7 +209,7 @@ const FULFILLMENT_LABELS: Record<
     badge: "Physical Gear",
     short: "Physical",
     cart: "Physical Gear",
-    free: "Physical gear included. Accra courier and nationwide delivery options calculated next.",
+    free: "Physical gear included. Koforidua pickup or nationwide delivery — rates at checkout.",
     downloads: "Physical Gear",
   },
   both: {

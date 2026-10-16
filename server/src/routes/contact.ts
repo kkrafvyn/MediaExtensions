@@ -66,7 +66,7 @@ router.post("/newsletter", async (req, res) => {
   res.status(201).json({ ok: true });
 });
 
-router.get("/", requireRoles("admin", "manager"), async (_req, res) => {
+router.get("/", requireRoles("admin", "manager", "technician"), async (_req, res) => {
   const rows = await db.query.contactMessages.findMany({
     orderBy: [desc(contactMessages.createdAt)],
     limit: 100,

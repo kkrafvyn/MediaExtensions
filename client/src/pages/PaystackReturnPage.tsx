@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -8,34 +8,34 @@ export function PaystackReturnPage() {
   const navigate = useNavigate();
   const { refreshCart } = useAuth();
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(true);
 
-  useEffect(() => {
-    const reference = params.get("reference") ?? params.get("trxref");
+  const reference = params.get("reference") ?? params.get("trxref") ?? "";
+
+  const verify = useCallback(async () => {
     if (!reference) {
       setError("Missing Paystack reference.");
+      setBusy(false);
       return;
     }
+    setBusy(true);
+    setError("");
+    try {
+      const res = await api<{ order: { id: string } }>("/api/checkout/paystack/verify", {
+        method: "POST",
+        body: JSON.stringify({ reference }),
+      });
+      await refreshCart();
+      navigate(`/order/${res.order.id}`, { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Payment verification failed");
+      setBusy(false);
+    }
+  }, [reference, navigate, refreshCart]);
 
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await api<{ order: { id: string } }>("/api/checkout/paystack/verify", {
-          method: "POST",
-          body: JSON.stringify({ reference }),
-        });
-        await refreshCart();
-        if (!cancelled) navigate(`/order/${res.order.id}`, { replace: true });
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Payment verification failed");
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [params, navigate, refreshCart]);
+  useEffect(() => {
+    void verify();
+  }, [verify]);
 
   if (error) {
     return (
@@ -43,6 +43,9 @@ export function PaystackReturnPage() {
         <h1>Payment</h1>
         <p className="error">{error}</p>
         <div className="cta-row">
+          <button type="button" className="btn btn-primary" onClick={() => void verify()} disabled={busy}>
+            Try again
+          </button>
           <Link to="/track" className="btn btn-light">
             Track order
           </Link>
@@ -55,7 +58,8 @@ export function PaystackReturnPage() {
   }
 
   return (
-    <div className="page container">
+    <div className="page container" style={{ maxWidth: 480, textAlign: "center" }}>
+      <div className="product-skeleton" style={{ width: 48, height: 48, borderRadius: "50%", margin: "2rem auto" }} aria-hidden />
       <p className="meta">Confirming Paystack payment…</p>
     </div>
   );

@@ -1,6 +1,7 @@
 import { db } from "../db/index.js";
 import { notifications, type Order, type RepairOrder } from "../db/schema.js";
 import { formatGhs } from "./utils.js";
+import { sendEmail } from "./mailer.js";
 import {
   agentPhoneNumbers,
   isWhatsAppConfigured,
@@ -151,6 +152,122 @@ export async function notifyOrderEvent(
   if (process.env.NODE_ENV !== "production") {
     console.log(`[notify:order:${event}]`, customerMessage);
   }
+}
+
+async function notifyCustomerUpdate(opts: {
+  email: string;
+  name: string;
+  phone: string | null;
+  subject: string;
+  message: string;
+  meta: Record<string, unknown>;
+}) {
+  try {
+    await sendEmail({ to: opts.email, subject: opts.subject, text: opts.message });
+  } catch (err) {
+    console.error(`[notify:${String(opts.meta.type)}] email failed`, err);
+  }
+  if (opts.phone && shouldNotifyCustomers()) {
+    try {
+      await notifyWhatsApp({
+        phone: opts.phone,
+        message: opts.message,
+        subject: opts.subject,
+        meta: { ...opts.meta, role: "customer" },
+        send: true,
+      });
+    } catch (err) {
+      console.error(`[notify:${String(opts.meta.type)}] WhatsApp failed`, err);
+    }
+  }
+  await db.insert(notifications).values({
+    channel: "log",
+    recipient: opts.email,
+    subject: opts.subject,
+    body: opts.message,
+    meta: opts.meta,
+  });
+}
+
+export async function notifyOrderFulfillment(opts: {
+  id: string;
+  email: string;
+  name: string;
+  phone: string | null;
+  fulfillmentMethod: string;
+  fulfillmentStatus: string;
+  trackingCarrier?: string | null;
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
+}) {
+  const labels: Record<string, string> = {
+    preparing: "Your order is being prepared.",
+    ready_to_ship: "Your order is ready to ship.",
+    shipped: "Your order has shipped.",
+    delivered: "Your order was marked delivered.",
+    ready_for_pickup: "Your order is ready for pickup.",
+    collected: "Your order was collected. Thank you!",
+  };
+  const message = [
+    `Hi ${opts.name},`,
+    `Update for order #${opts.id.slice(0, 8)}: ${labels[opts.fulfillmentStatus] ?? opts.fulfillmentStatus.replaceAll("_", " ")}.`,
+    opts.trackingCarrier ? `Courier: ${opts.trackingCarrier}.` : "",
+    opts.trackingNumber ? `Tracking number: ${opts.trackingNumber}.` : "",
+    opts.trackingUrl ? `Track shipment: ${opts.trackingUrl}` : "",
+  ].filter(Boolean).join("\n");
+  await notifyCustomerUpdate({
+    email: opts.email,
+    name: opts.name,
+    phone: opts.phone,
+    subject: `Order #${opts.id.slice(0, 8)} ${opts.fulfillmentStatus.replaceAll("_", " ")}`,
+    message,
+    meta: { type: "order_fulfillment", orderId: opts.id, fulfillmentMethod: opts.fulfillmentMethod, fulfillmentStatus: opts.fulfillmentStatus },
+  });
+}
+
+export async function notifyReturnUpdate(opts: {
+  id: string;
+  orderId: string;
+  email: string;
+  name: string;
+  phone: string | null;
+  reason: string;
+  details: string;
+  status: string;
+  decisionNotes?: string | null;
+  refundPesewas?: number | null;
+  refundReference?: string | null;
+}) {
+  const shortId = opts.id.slice(0, 8);
+  const statusMessage: Record<string, string> = {
+    requested: "Your return request has been received and is awaiting review.",
+    approved: "Your return request was approved. Please contact the store to arrange the return inspection.",
+    rejected: "Your return request was not approved.",
+    refunded: `A refund of ${formatGhs(opts.refundPesewas ?? 0)} has been processed for order #${opts.orderId.slice(0, 8)}.`,
+  };
+  const message = [
+    `Hi ${opts.name},`,
+    `Return request #${shortId}: ${statusMessage[opts.status] ?? opts.status}.`,
+    opts.status === "requested" ? `Request details: ${opts.details}` : "",
+    opts.decisionNotes ? `Staff note: ${opts.decisionNotes}` : "",
+    opts.refundReference ? `Refund reference: ${opts.refundReference}` : "",
+  ].filter(Boolean).join("\n");
+
+  if (opts.status === "requested") {
+    await alertStaffAgents(
+      `Return request\nOrder #${opts.orderId.slice(0, 8)}\n${opts.name}\n${opts.email}\n${opts.reason}\n${opts.details}`,
+      "Return requested",
+      { returnId: opts.id, orderId: opts.orderId, type: "return" },
+    );
+  }
+  await notifyCustomerUpdate({
+    email: opts.email,
+    name: opts.name,
+    phone: opts.phone,
+    subject: `Return request #${shortId} ${opts.status}`,
+    message,
+    meta: { type: "return_update", returnId: opts.id, orderId: opts.orderId, status: opts.status },
+  });
 }
 
 export async function notifyRepairBooked(

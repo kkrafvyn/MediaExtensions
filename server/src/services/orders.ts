@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { db } from "../db/index.js";
 import {
   downloadTokens,
@@ -7,7 +7,6 @@ import {
   orders,
   products,
 } from "../db/schema.js";
-import { availableStock } from "../lib/inventory.js";
 import { notifyOrderEvent } from "../lib/notify.js";
 import { sendDownloadLinks, sendOrderConfirmation } from "../lib/mailer.js";
 import { formatGhs } from "../lib/utils.js";
@@ -52,18 +51,24 @@ export async function reserveStockForOrder(orderId: string) {
   for (const item of items) {
     if (!item.productId || !needsPhysicalStock(item.fulfillment)) continue;
 
-    const product = await db.query.products.findFirst({
-      where: eq(products.id, item.productId),
-    });
-    if (!product) continue;
-    if (availableStock(product) < item.quantity) {
-      throw new Error(`Insufficient stock for ${item.name}`);
-    }
-
-    await db
+    const [updated] = await db
       .update(products)
       .set({ reserved: sql`${products.reserved} + ${item.quantity}` })
-      .where(eq(products.id, product.id));
+      .where(
+        and(
+          eq(products.id, item.productId),
+          sql`${products.stock} - COALESCE(${products.reserved}, 0) >= ${item.quantity}`,
+        ),
+      )
+      .returning();
+
+    if (!updated) {
+      const product = await db.query.products.findFirst({
+        where: eq(products.id, item.productId),
+      });
+      const label = product?.name ?? item.name;
+      throw new Error(`Insufficient stock for ${label}`);
+    }
   }
 }
 
@@ -193,10 +198,18 @@ export async function markOrderPaid(orderId: string) {
   const wasHolding =
     order.status === "pending_payment" || order.status === "awaiting_pickup";
 
-  await db
+  const [claimed] = await db
     .update(orders)
     .set({ status: "paid", updatedAt: new Date() })
-    .where(eq(orders.id, orderId));
+    .where(and(eq(orders.id, orderId), notInArray(orders.status, ["paid", "fulfilled"])))
+    .returning();
+
+  if (!claimed) {
+    return db.query.orders.findFirst({
+      where: eq(orders.id, orderId),
+      with: { items: { with: { downloadTokens: true } } },
+    });
+  }
 
   if (wasHolding) {
     await finalizeStockReservation(orderId);
@@ -260,6 +273,6 @@ export async function cancelOrder(orderId: string) {
 export async function fulfillOrder(orderId: string) {
   await db
     .update(orders)
-    .set({ status: "fulfilled", updatedAt: new Date() })
+    .set({ status: "fulfilled", fulfilledAt: new Date(), updatedAt: new Date() })
     .where(and(eq(orders.id, orderId), inArray(orders.status, ["paid", "awaiting_pickup"])));
 }

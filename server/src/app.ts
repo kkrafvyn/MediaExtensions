@@ -25,6 +25,10 @@ import repairRoutes from "./routes/repairs.js";
 import staffRoutes from "./routes/staff.js";
 import contactRoutes from "./routes/contact.js";
 import { handlePaystackWebhook } from "./routes/paystackWebhook.js";
+import { vercelSession } from "./middleware/vercelSession.js";
+import { isAllowedOrigin } from "./lib/security.js";
+import { hitRateLimit } from "./lib/postgresRateLimit.js";
+import type { NextFunction } from "express";
 
 import {
   ensureLocalStorageDirs,
@@ -63,11 +67,7 @@ app.set("trust proxy", 1);
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.has(origin)) {
-        return callback(null, true);
-      }
-      // Allow preview deployments on vercel.app
-      if (origin.endsWith(".vercel.app")) {
+      if (isAllowedOrigin(origin, allowedOrigins)) {
         return callback(null, true);
       }
       return callback(new Error(`CORS blocked for ${origin}`));
@@ -92,29 +92,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 if (process.env.VERCEL === "1") {
-  // No server session store on serverless — attach a lightweight stub.
-  app.use((req, _res, next) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (req as any).session = Object.assign(Object.create(null), {
-      userId: undefined,
-      destroy(cb?: (err?: Error) => void) {
-        cb?.();
-      },
-      reload(cb?: (err?: Error) => void) {
-        cb?.();
-      },
-      regenerate(cb?: (err?: Error) => void) {
-        cb?.();
-      },
-      save(cb?: (err?: Error) => void) {
-        cb?.();
-      },
-      touch(cb?: (err?: Error) => void) {
-        cb?.();
-      },
-    });
-    next();
-  });
+  app.use(vercelSession(process.env.SESSION_SECRET ?? "dev-secret", isProd));
 } else {
   app.use(
     session({
@@ -144,14 +122,31 @@ app.use(async (req: AuthedRequest, _res, next) => {
   try {
     if (req.session?.userId) {
       const [user] = await db.select().from(users).where(eq(users.id, req.session.userId)).limit(1);
-      req.user = user ?? null;
-      if (!user) delete req.session.userId;
+      const sessionVersion = (req.session as { sessionVersion?: number }).sessionVersion;
+      if (user && sessionVersion != null && user.sessionVersion !== sessionVersion) {
+        delete req.session.userId;
+        req.user = null;
+      } else {
+        req.user = user ?? null;
+        if (!user) delete req.session.userId;
+      }
     }
   } catch (err) {
     console.warn("[auth middleware]", err);
   }
   next();
 });
+
+function sharedRateLimit(scope: string, max: number, windowMs: number) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+    const allowed = await hitRateLimit(`${scope}:${ip}`, max, windowMs);
+    if (!allowed) {
+      return res.status(429).json({ error: "Too many attempts, try again later" });
+    }
+    next();
+  };
+}
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -199,12 +194,15 @@ app.get("/api/meta", async (_req, res) => {
   });
 });
 
-app.use("/api/auth/login", authLimiter);
-app.use("/api/auth/register", authLimiter);
-app.use("/api/auth/forgot-password", authLimiter);
-app.use("/api/auth/reset-password", authLimiter);
-app.use("/api/contact", contactLimiter);
-app.use("/api/checkout", checkoutLimiter);
+app.use("/api/auth/login", sharedRateLimit("auth-login", 30, 15 * 60 * 1000), authLimiter);
+app.use("/api/auth/register", sharedRateLimit("auth-register", 30, 15 * 60 * 1000), authLimiter);
+app.use("/api/auth/forgot-password", sharedRateLimit("auth-forgot", 20, 15 * 60 * 1000), authLimiter);
+app.use("/api/auth/reset-password", sharedRateLimit("auth-reset", 20, 15 * 60 * 1000), authLimiter);
+app.use("/api/auth/verify-email", authLimiter);
+app.use("/api/auth/email-verification/resend", authLimiter);
+app.use("/api/auth/mfa", sharedRateLimit("auth-mfa", 30, 15 * 60 * 1000), authLimiter);
+app.use("/api/contact", sharedRateLimit("contact", 20, 15 * 60 * 1000), contactLimiter);
+app.use("/api/checkout", sharedRateLimit("checkout", 40, 15 * 60 * 1000), checkoutLimiter);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);

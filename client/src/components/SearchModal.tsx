@@ -14,6 +14,8 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
+  const [searchError, setSearchError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -41,22 +43,35 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     if (!query.trim()) {
       setResults([]);
       setLoading(false);
+      setSearchError(false);
       return;
     }
 
     setLoading(true);
+    setSearchError(false);
+    let cancelled = false;
     const timer = setTimeout(() => {
       api<{ products: Product[] }>(`/api/products?q=${encodeURIComponent(query.trim())}`)
         .then((data) => {
+          if (cancelled) return;
           setResults(data.products || []);
           setSelectedIndex(0);
         })
-        .catch(() => setResults([]))
-        .finally(() => setLoading(false));
+        .catch(() => {
+          if (cancelled) return;
+          setResults([]);
+          setSearchError(true);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
     }, 200);
 
-    return () => clearTimeout(timer);
-  }, [query]);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, retryCount]);
 
   // Keyboard navigation within results
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -86,6 +101,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
       className={`search-modal-overlay ${isOpen ? "open" : ""}`}
       onClick={onClose}
       aria-modal="true"
+      aria-label="Search the catalog"
       role="dialog"
     >
       <div
@@ -111,6 +127,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
             ref={inputRef}
             type="text"
             placeholder="Search tools, LUTs, cameras, mics, repairs..."
+            aria-label="Search products"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -134,16 +151,18 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
           )}
 
           {!loading && results.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
               {results.map((product, idx) => {
-                const isDigital = product.fulfillment === "digital";
+                const fulfillmentLabel = product.fulfillment === "digital" ? "Digital" : product.fulfillment === "physical" ? "Gear" : "Bundle";
                 const isSelected = idx === selectedIndex;
                 return (
-                  <div
+                  <button
                     key={product.id}
+                    type="button"
                     className={`search-result-row ${isSelected ? "selected" : ""}`}
                     onClick={() => goToProduct(product.slug)}
                     onMouseEnter={() => setSelectedIndex(idx)}
+                    aria-label={`${product.name}, ${formatGhs(product.pricePesewas)}`}
                   >
                     <div className="search-result-thumb">
                       <img
@@ -171,10 +190,10 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                           {product.name}
                         </strong>
                         <span
-                          className={`badge ${isDigital ? "badge-digital" : "badge-physical"}`}
+                          className={`badge ${product.fulfillment === "digital" ? "badge-digital" : product.fulfillment === "physical" ? "badge-physical" : "badge-both"}`}
                           style={{ fontSize: "0.62rem", padding: "0.1rem 0.35rem" }}
                         >
-                          {isDigital ? "Digital" : "Gear"}
+                          {fulfillmentLabel}
                         </span>
                       </div>
                       <span className="meta" style={{ fontSize: "0.78rem" }}>
@@ -191,13 +210,22 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                     >
                       {formatGhs(product.pricePesewas)}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
           )}
 
-          {!loading && query && results.length === 0 && (
+          {!loading && searchError && (
+            <div style={{ padding: "2.5rem 1.5rem", textAlign: "center" }} role="alert">
+              <p style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Search is temporarily unavailable.</p>
+              <button type="button" className="btn btn-light btn-sm" onClick={() => setRetryCount((count) => count + 1)}>
+                Retry search
+              </button>
+            </div>
+          )}
+
+          {!loading && !searchError && query && results.length === 0 && (
             <div style={{ padding: "2.5rem 1.5rem", textAlign: "center" }}>
               <p style={{ fontWeight: 600, marginBottom: "0.35rem" }}>
                 No matching creator tools found for "{query}"
