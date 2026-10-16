@@ -130,6 +130,14 @@ export function OrderReceiptPage() {
   );
 }
 
+type RepairPayment = {
+  id: string;
+  method: string;
+  amountPesewas: number;
+  reference: string | null;
+  receivedAt: string;
+};
+
 type RepairDetail = {
   id: string;
   status: string;
@@ -143,6 +151,7 @@ type RepairDetail = {
   quotePesewas: number | null;
   service?: { name: string } | null;
   createdAt?: string;
+  payments?: RepairPayment[];
 };
 
 export function RepairReceiptPage() {
@@ -232,6 +241,27 @@ export function RepairReceiptPage() {
             {repair.quotePesewas != null ? formatGhs(repair.quotePesewas) : "Pending"}
           </strong>
         </div>
+
+        {(repair.payments?.length ?? 0) > 0 && (
+          <>
+            <h2 style={{ fontSize: "1rem", margin: "0.5rem 0 0" }}>Payments received</h2>
+            {repair.payments!.map((p) => (
+              <div key={p.id} className="line-item">
+                <span>
+                  {p.method.replaceAll("_", " ")} · {new Date(p.receivedAt).toLocaleDateString("en-GH")}
+                  {p.reference ? ` · ${p.reference}` : ""}
+                </span>
+                <span>{formatGhs(p.amountPesewas)}</span>
+              </div>
+            ))}
+            <div className="line-item">
+              <strong>Total paid</strong>
+              <strong>
+                {formatGhs(repair.payments!.reduce((sum, p) => sum + p.amountPesewas, 0))}
+              </strong>
+            </div>
+          </>
+        )}
       </article>
     </div>
   );

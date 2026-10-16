@@ -51,6 +51,16 @@ npm run db:purge-catalog
 
 Then re-add categories, products, and repair services in the staff console.
 
+### Production checklist
+
+After deploying or purging the catalog, run from the repo root (with `server/.env` loaded):
+
+```bash
+npm run production-check
+```
+
+See [RUNBOOK.md](./RUNBOOK.md) for migrations on Neon, Vercel env vars, R2 uploads, and repopulating the catalog in Staff.
+
 ## Flow
 
 1. Add digital + physical items to bag (guest OK)

@@ -10,6 +10,7 @@ import { getOrderDownloads } from "../services/orders.js";
 import { formatGhs, paymentInstructions } from "../lib/utils.js";
 import { isPhysicalReturnEligible } from "../lib/orderTransitions.js";
 import { notifyReturnUpdate } from "../lib/notify.js";
+import { createTrackToken } from "../lib/trackToken.js";
 
 const router = Router();
 
@@ -69,7 +70,12 @@ router.post("/track", async (req, res) => {
       ? await getOrderDownloads(order.id)
       : [];
 
+  const trackToken = createTrackToken("order", order.id);
+  const clientBase = (process.env.CLIENT_URL ?? "http://localhost:5173").replace(/\/$/, "");
+
   res.json({
+    trackToken,
+    shareUrl: `${clientBase}/track/t/${trackToken}`,
     order: {
       id: order.id,
       status: order.status,

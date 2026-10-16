@@ -30,7 +30,7 @@ import {
 } from "../lib/orderTransitions.js";
 import { recordAuditLog } from "../lib/audit.js";
 import { isEmailConfigured } from "../lib/mailer.js";
-import { notifyOrderFulfillment, notifyReturnUpdate } from "../lib/notify.js";
+import { notifyOrderFulfillment, notifyRepairStatusUpdate, notifyReturnUpdate } from "../lib/notify.js";
 import { newPasswordSchema } from "../lib/security.js";
 import { initiateRefund } from "../lib/paystack.js";
 import { formatGhs, slugify } from "../lib/utils.js";
@@ -972,6 +972,11 @@ router.patch("/repairs/:id", async (req: AuthedRequest, res) => {
     entityId: row.id,
     details: { status: parsed.data.status, quotePesewas: parsed.data.quotePesewas, paymentStatus: parsed.data.paymentStatus, paymentMethod: parsed.data.paymentMethod },
   });
+  if (parsed.data.status && parsed.data.status !== existing.status) {
+    void notifyRepairStatusUpdate(row, existing.status).catch((err) =>
+      console.error("[notify:repair-status]", err),
+    );
+  }
   res.json({ repair: row });
 });
 
@@ -1101,6 +1106,34 @@ router.get("/export/repairs", requireRoles("admin", "manager", "technician"), as
     .join("\n");
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", 'attachment; filename="repairs.csv"');
+  res.send(header + body);
+});
+
+router.get("/export/payments", requireRoles("admin", "manager"), async (req, res) => {
+  const { limit } = parseListQuery(req);
+  const rows = await db.query.paymentRecords.findMany({
+    orderBy: [desc(paymentRecords.receivedAt)],
+    limit: Math.min(limit, 5000),
+    with: { order: true, repairOrder: true },
+  });
+  const header = "id,order_id,repair_order_id,method,amount_pesewas,reference,received_at\n";
+  const body = rows
+    .map((p) =>
+      [
+        p.id,
+        p.orderId ?? "",
+        p.repairOrderId ?? "",
+        p.method,
+        p.amountPesewas,
+        p.reference ?? "",
+        p.receivedAt.toISOString(),
+      ]
+        .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
+        .join(","),
+    )
+    .join("\n");
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", 'attachment; filename="payments.csv"');
   res.send(header + body);
 });
 

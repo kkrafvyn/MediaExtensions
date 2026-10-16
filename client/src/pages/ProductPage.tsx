@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { toast } from "../components/Toast";
 import { ProductCard } from "../components/ProductCard";
 import { FulfillmentBadge } from "../components/Icons";
+import { PageMeta } from "../components/PageMeta";
 import type { Product } from "../types";
 
 export function ProductPage() {
@@ -88,8 +89,18 @@ export function ProductPage() {
   const lowStock = hasPhysical && product.stock > 0 && product.stock <= 5;
   const maxQty = hasPhysical ? Math.max(1, product.stock) : 99;
 
+  const metaImage = product.images?.[0]?.startsWith("http") ? product.images[0] : undefined;
+
   return (
     <div className="page container product-page">
+      <PageMeta
+        title={product.name}
+        description={
+          product.description?.slice(0, 160) ||
+          `${product.name} — ${formatGhs(product.pricePesewas)} at Media Extensions`
+        }
+        image={metaImage}
+      />
       {/* Breadcrumbs */}
       <nav aria-label="Breadcrumb" className="product-breadcrumb" style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "1.75rem", fontSize: "0.88rem", color: "var(--muted)" }}>
         <Link to="/shop" style={{ color: "var(--muted)" }}>Store</Link>

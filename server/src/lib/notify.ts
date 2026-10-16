@@ -316,6 +316,43 @@ export async function notifyRepairBooked(
   });
 }
 
+export async function notifyRepairStatusUpdate(
+  repair: Pick<
+    RepairOrder,
+    "id" | "email" | "phone" | "name" | "deviceBrand" | "deviceModel" | "status"
+  >,
+  previousStatus: string,
+) {
+  if (repair.status === previousStatus) return;
+  const shortId = repair.id.slice(0, 8);
+  const customerMessage = `Hi ${repair.name}, your Media Extensions repair #${shortId} (${repair.deviceBrand} ${repair.deviceModel}) is now: ${repair.status.replaceAll("_", " ")}.`;
+  const staffMessage = `🛠️ Repair #${shortId} → ${repair.status.replaceAll("_", " ")}\n${repair.name} · ${repair.deviceBrand} ${repair.deviceModel}`;
+
+  await alertStaffAgents(staffMessage, "Repair status update", {
+    repairId: repair.id,
+    status: repair.status,
+    type: "repair_status",
+  });
+
+  if (shouldNotifyCustomers()) {
+    await notifyWhatsApp({
+      phone: repair.phone,
+      message: customerMessage,
+      subject: "Repair status update",
+      meta: { repairId: repair.id, status: repair.status, role: "customer" },
+      send: true,
+    });
+  }
+
+  await db.insert(notifications).values({
+    channel: "log",
+    recipient: repair.email,
+    subject: "Repair status update",
+    body: customerMessage,
+    meta: { repairId: repair.id, from: previousStatus, to: repair.status },
+  });
+}
+
 export async function notifyContactMessage(opts: {
   name: string;
   email: string;

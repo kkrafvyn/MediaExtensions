@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "../db/index.js";
 import { repairOrders, repairServices } from "../db/schema.js";
 import { notifyRepairBooked } from "../lib/notify.js";
+import { createTrackToken } from "../lib/trackToken.js";
 import {
   getCartSessionId,
   requireAuth,
@@ -113,7 +114,14 @@ router.post("/track", async (req, res) => {
 
   grantRepairAccess(req, repair.id);
 
-  res.json({ repair });
+  const trackToken = createTrackToken("repair", repair.id);
+  const clientBase = (process.env.CLIENT_URL ?? "http://localhost:5173").replace(/\/$/, "");
+
+  res.json({
+    repair,
+    trackToken,
+    shareUrl: `${clientBase}/track/t/${trackToken}`,
+  });
 });
 
 router.get("/mine", requireAuth, async (req: AuthedRequest, res) => {
@@ -128,7 +136,7 @@ router.get("/mine", requireAuth, async (req: AuthedRequest, res) => {
 router.get("/:id", async (req: AuthedRequest, res) => {
   const repair = await db.query.repairOrders.findFirst({
     where: eq(repairOrders.id, req.params.id),
-    with: { service: true },
+    with: { service: true, payments: true },
   });
   if (!repair) {
     return res.status(404).json({ error: "Repair not found" });

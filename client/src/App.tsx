@@ -10,6 +10,7 @@ import { CheckoutPage } from "./pages/CheckoutPage";
 import { PaystackReturnPage } from "./pages/PaystackReturnPage";
 import { OrderPage } from "./pages/OrderPage";
 import { TrackOrderPage } from "./pages/TrackOrderPage";
+import { TrackSharePage } from "./pages/TrackSharePage";
 import { RepairsPage, RepairBookPage, RepairStatusPage } from "./pages/RepairsPages";
 import {
   AboutPage,
@@ -20,6 +21,9 @@ import {
   TermsPage,
   FaqPage,
   PickupPage,
+  RepairWarrantyPage,
+  RepairHowWeQuotePage,
+  WholesalePage,
   NotFoundPage,
 } from "./pages/InfoPages";
 
@@ -82,6 +86,7 @@ export default function App() {
               <Route path="order/:id" element={<OrderPage />} />
               <Route path="order/:id/receipt" element={<OrderReceiptPage />} />
               <Route path="track" element={<TrackOrderPage />} />
+              <Route path="track/t/:token" element={<TrackSharePage />} />
               <Route path="login" element={<LoginPage />} />
               <Route path="register" element={<RegisterPage />} />
               <Route path="forgot-password" element={<ForgotPasswordPage />} />
@@ -91,6 +96,8 @@ export default function App() {
               <Route path="account/repairs" element={<AccountPage />} />
               <Route path="repairs" element={<RepairsPage />} />
               <Route path="repairs/book" element={<RepairBookPage />} />
+              <Route path="repairs/warranty" element={<RepairWarrantyPage />} />
+              <Route path="repairs/how-we-quote" element={<RepairHowWeQuotePage />} />
               <Route path="repairs/status/:id" element={<RepairStatusPage />} />
               <Route path="repairs/status/:id/receipt" element={<RepairReceiptPage />} />
               <Route path="imei-check" element={<ImeiCheckPage />} />
@@ -102,6 +109,7 @@ export default function App() {
               <Route path="terms" element={<TermsPage />} />
               <Route path="faq" element={<FaqPage />} />
               <Route path="pickup" element={<PickupPage />} />
+              <Route path="wholesale" element={<WholesalePage />} />
               <Route path="staff" element={<StaffLayout />}>
                 <Route index element={<StaffDashboard />} />
                 <Route path="orders" element={<StaffOrders />} />

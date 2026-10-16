@@ -78,6 +78,7 @@ export function Footer() {
           <Link to="/shop">All products</Link>
           <Link to="/shop?fulfillment=digital">Digital</Link>
           <Link to="/shop?fulfillment=physical">Physical</Link>
+          <Link to="/wholesale">Wholesale</Link>
           <Link to="/cart">Bag</Link>
         </div>
 
@@ -85,6 +86,8 @@ export function Footer() {
           <h3>Repairs</h3>
           <Link to="/repairs">Overview</Link>
           <Link to="/repairs/book">Book</Link>
+          <Link to="/repairs/how-we-quote">How we quote</Link>
+          <Link to="/repairs/warranty">Warranty</Link>
           <Link to="/imei-check">IMEI check</Link>
           <Link to="/track">Track</Link>
         </div>

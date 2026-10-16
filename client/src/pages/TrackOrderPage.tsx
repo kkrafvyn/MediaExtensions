@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, formatGhs } from "../lib/api";
 import { IconCheck } from "../components/Icons";
+import { CopyButton } from "../components/CopyButton";
 import {
   REPAIR_TRACK_STEPS,
   orderTimelineIndex,
@@ -28,6 +29,7 @@ export function TrackOrderPage() {
   const [repair, setRepair] = useState<RepairTrack | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [shareUrl, setShareUrl] = useState("");
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -36,20 +38,27 @@ export function TrackOrderPage() {
     setOrder(null);
     setDownloads([]);
     setRepair(null);
+    setShareUrl("");
     try {
       if (mode === "order") {
-        const res = await api<{ order: OrderSummary; downloads?: TrackDownload[] }>("/api/orders/track", {
+        const res = await api<{
+          order: OrderSummary;
+          downloads?: TrackDownload[];
+          shareUrl?: string;
+        }>("/api/orders/track", {
           method: "POST",
           body: JSON.stringify({ email: email.trim(), orderId: referenceId.trim() }),
         });
         setOrder(res.order);
         setDownloads(res.downloads ?? []);
+        setShareUrl(res.shareUrl ?? "");
       } else {
-        const res = await api<{ repair: RepairTrack }>("/api/repairs/track", {
+        const res = await api<{ repair: RepairTrack; shareUrl?: string }>("/api/repairs/track", {
           method: "POST",
           body: JSON.stringify({ email: email.trim(), repairId: referenceId.trim() }),
         });
         setRepair(res.repair);
+        setShareUrl(res.shareUrl ?? "");
       }
     } catch (err) {
       setError(
@@ -247,6 +256,13 @@ export function TrackOrderPage() {
             </div>
           )}
 
+          {shareUrl && (
+            <div className="stack" style={{ gap: "0.5rem" }}>
+              <span className="meta">Share this status (no email required for recipients who have the link)</span>
+              <CopyButton text={shareUrl} label="Copy tracking link" className="btn btn-light btn-sm" />
+            </div>
+          )}
+
           <div className="cta-row" style={{ marginTop: "1rem" }}>
             <Link to={`/order/${order.id}`} className="btn btn-primary" style={{ flex: 1 }}>
               View Full Order & Downloads
@@ -303,6 +319,13 @@ export function TrackOrderPage() {
               {repair.quotePesewas != null ? formatGhs(repair.quotePesewas) : "Pending quote"}
             </span>
           </div>
+
+          {shareUrl && (
+            <div className="stack" style={{ gap: "0.5rem" }}>
+              <span className="meta">Share repair progress with family or colleagues</span>
+              <CopyButton text={shareUrl} label="Copy tracking link" className="btn btn-light btn-sm" />
+            </div>
+          )}
 
           <div className="cta-row" style={{ marginTop: "1rem" }}>
             <Link to={`/repairs/status/${repair.id}`} className="btn btn-primary" style={{ flex: 1 }}>

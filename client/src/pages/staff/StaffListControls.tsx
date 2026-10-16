@@ -6,6 +6,7 @@ type StaffListControlsProps = {
   limit: number;
   onPageChange: (page: number) => void;
   exportHref?: string;
+  exportPaymentsHref?: string;
   onSearch: () => void;
 };
 
@@ -17,6 +18,7 @@ export function StaffListControls({
   limit,
   onPageChange,
   exportHref,
+  exportPaymentsHref,
   onSearch,
 }: StaffListControlsProps) {
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -39,6 +41,11 @@ export function StaffListControls({
       {exportHref ? (
         <a className="btn btn-light btn-sm" href={exportHref}>
           Export CSV
+        </a>
+      ) : null}
+      {exportPaymentsHref ? (
+        <a className="btn btn-light btn-sm" href={exportPaymentsHref}>
+          Export payments
         </a>
       ) : null}
       <span className="meta" style={{ marginLeft: "auto" }}>

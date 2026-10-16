@@ -27,6 +27,15 @@ export function StaffLayout() {
   const isAdmin = user?.role === "admin";
   const isManager = user?.role === "manager";
   const catalogStaff = isAdmin || isManager;
+  const [lowStockCount, setLowStockCount] = useState(0);
+
+  useEffect(() => {
+    if (!catalogStaff) return;
+    api<StaffAnalytics>("/api/staff/analytics")
+      .then((a) => setLowStockCount(a.lowStock?.length ?? 0))
+      .catch(() => setLowStockCount(0));
+  }, [catalogStaff]);
+
   return (
     <StaffGuard>
       <div className="page container staff-shell">
@@ -82,6 +91,11 @@ export function StaffLayout() {
             <span className="staff-nav-label">Catalog</span>
             <NavLink to="/staff/products" className={({ isActive }) => `staff-nav-link ${isActive ? "active" : ""}`}>
               Products
+              {lowStockCount > 0 ? (
+                <span className="staff-nav-badge" title="Low stock SKUs">
+                  {lowStockCount}
+                </span>
+              ) : null}
             </NavLink>
             <NavLink to="/staff/services" className={({ isActive }) => `staff-nav-link ${isActive ? "active" : ""}`}>
               Repair services
@@ -560,8 +574,11 @@ export function StaffOrders() {
     shipping?: { fullName?: string; street?: string; city?: string; region?: string; phone?: string } | null;
     items?: Array<{ name: string; quantity: number; unitPricePesewas: number; fulfillment: string }>;
     payments: Payment[];
+    staffNotes?: string | null;
   };
   const [orders, setOrders] = useState<StaffOrder[]>([]);
+  const [notesDraft, setNotesDraft] = useState<Record<string, string>>({});
+  const [notesError, setNotesError] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [recordingFor, setRecordingFor] = useState<string | null>(null);
@@ -635,6 +652,19 @@ export function StaffOrders() {
     }
   }
 
+  async function saveStaffNotes(orderId: string) {
+    setNotesError("");
+    try {
+      await api(`/api/staff/orders/${orderId}/notes`, {
+        method: "PATCH",
+        body: JSON.stringify({ staffNotes: notesDraft[orderId] ?? "" }),
+      });
+      await load();
+    } catch (err) {
+      setNotesError(err instanceof Error ? err.message : "Could not save notes");
+    }
+  }
+
   async function saveFulfillment(e: FormEvent<HTMLFormElement>, order: StaffOrder) {
     e.preventDefault();
     const values = new FormData(e.currentTarget);
@@ -675,6 +705,9 @@ export function StaffOrders() {
         limit={limit}
         onPageChange={(p) => void load(p, q)}
         exportHref={staffListPath("/api/staff/export/orders", q, 1, 5000)}
+        exportPaymentsHref={
+          user?.role === "admin" || user?.role === "manager" ? "/api/staff/export/payments" : undefined
+        }
         onSearch={() => void load(1, q)}
       />
       <div className="staff-filter-row">
@@ -713,7 +746,16 @@ export function StaffOrders() {
                       <button
                         type="button"
                         className="staff-expand-btn"
-                        onClick={() => setExpandedId(expandedId === o.id ? null : o.id)}
+                        onClick={() => {
+                          const next = expandedId === o.id ? null : o.id;
+                          setExpandedId(next);
+                          if (next === o.id) {
+                            setNotesDraft((prev) => ({
+                              ...prev,
+                              [o.id]: prev[o.id] ?? o.staffNotes ?? "",
+                            }));
+                          }
+                        }}
                       >
                         <strong>{o.name}</strong>
                       </button>
@@ -778,6 +820,29 @@ export function StaffOrders() {
                                 {p.reference ? ` · ${p.reference}` : ""}
                               </div>
                             ))}
+                          </div>
+                          <div>
+                            <strong>Internal notes</strong>
+                            <textarea
+                              rows={3}
+                              value={notesDraft[o.id] ?? o.staffNotes ?? ""}
+                              onChange={(e) => setNotesDraft({ ...notesDraft, [o.id]: e.target.value })}
+                              placeholder="Visible to staff only — pickup instructions, fraud flags, etc."
+                              style={{ width: "100%", marginTop: "0.35rem" }}
+                            />
+                            {notesError && expandedId === o.id && (
+                              <p className="error" role="alert">
+                                {notesError}
+                              </p>
+                            )}
+                            <button
+                              type="button"
+                              className="btn btn-light btn-sm"
+                              style={{ marginTop: "0.35rem" }}
+                              onClick={() => void saveStaffNotes(o.id)}
+                            >
+                              Save notes
+                            </button>
                           </div>
                         </div>
                         {o.fulfillmentMethod && o.fulfillmentMethod !== "digital" && (

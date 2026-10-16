@@ -9,7 +9,22 @@ import {
   IconPin,
   IconArrowRight,
 } from "../components/Icons";
+import { PageMeta } from "../components/PageMeta";
 import type { Product, RepairService } from "../types";
+
+const HOME_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "Store",
+  name: "Media Extensions",
+  description: "Digital tools, camera gear, and GSM repairs in Koforidua, Ghana.",
+  address: {
+    "@type": "PostalAddress",
+    addressLocality: "Koforidua",
+    addressCountry: "GH",
+  },
+  priceRange: "GHS",
+  url: typeof window !== "undefined" ? window.location.origin : "",
+};
 
 export function HomePage() {
   const [featured, setFeatured] = useState<Product[]>([]);
@@ -39,8 +54,23 @@ export function HomePage() {
     return () => { cancelled = true; };
   }, [retryCount]);
 
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.type = "application/ld+json";
+    script.text = JSON.stringify({ ...HOME_JSON_LD, url: window.location.origin });
+    script.id = "home-json-ld";
+    document.head.appendChild(script);
+    return () => {
+      script.remove();
+    };
+  }, []);
+
   return (
     <>
+      <PageMeta
+        title="Shop & repairs"
+        description="Presets, plugins, camera gear, and GSM repairs in Koforidua. Prices in Ghana cedis."
+      />
       <section className="hero">
         <div className="container hero-layout">
         <div className="hero-copy">

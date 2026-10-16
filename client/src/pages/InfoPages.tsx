@@ -385,6 +385,103 @@ export function PickupPage() {
   );
 }
 
+export function RepairWarrantyPage() {
+  return (
+    <InfoPage
+      title="Repair warranty"
+      lede="What we stand behind after your device leaves the bench."
+    >
+      <InfoSection title="Workmanship">
+        <p>
+          Paid repair work is covered against defects in our labor for <strong>30 days</strong> from
+          collection. If the same fault returns without new physical damage, bring the device back with
+          your ticket ID and we will re-inspect at no diagnostic fee.
+        </p>
+      </InfoSection>
+      <InfoSection title="Parts">
+        <p>
+          Replacement parts carry the supplier’s warranty where applicable. We will note on your quote
+          when a part is refurbished or aftermarket so you can decide before approving work.
+        </p>
+      </InfoSection>
+      <InfoSection title="Not covered">
+        <p>
+          Liquid damage after repair, cracked screens from drops, lost devices, and issues caused by
+          unauthorized third-party repairs are outside warranty. See also{" "}
+          <Link to="/returns">Returns & refunds</Link> for store purchases.
+        </p>
+      </InfoSection>
+    </InfoPage>
+  );
+}
+
+export function RepairHowWeQuotePage() {
+  return (
+    <InfoPage
+      title="How we quote repairs"
+      lede="Transparent steps from drop-off to approval — no surprise invoices."
+    >
+      <InfoSection title="1 · Intake">
+        <p>
+          We log your device, issue description, and contact details. You receive a ticket ID by email
+          for tracking.
+        </p>
+      </InfoSection>
+      <InfoSection title="2 · Diagnosis">
+        <p>
+          A technician inspects hardware and software. Simple fixes may be quoted same-day; board-level
+          or parts-on-order jobs may take longer.
+        </p>
+      </InfoSection>
+      <InfoSection title="3 · Your approval">
+        <p>
+          We send a quote in Ghana cedis. Work starts only after you approve in your{" "}
+          <Link to="/track">tracking page</Link> or in store. You can decline and collect the device
+          after paying any agreed diagnostic fee noted upfront.
+        </p>
+      </InfoSection>
+      <InfoSection title="4 · Payment & pickup">
+        <p>
+          Pay via MoMo, bank, cash at the counter, or Paystack where enabled. We notify you when the
+          device is ready for collection in Koforidua.
+        </p>
+      </InfoSection>
+    </InfoPage>
+  );
+}
+
+export function WholesalePage() {
+  const { meta } = useSiteMeta();
+  const email = meta?.storeEmail?.trim() || meta?.store?.email?.trim() || "hello@mediaextensions.com";
+
+  return (
+    <InfoPage
+      title="Wholesale & bulk"
+      lede="Studios, schools, and resellers — let’s talk volume pricing on gear and digital licenses."
+    >
+      <InfoSection title="Who it’s for">
+        <p>
+          Content teams buying LUT packs in bulk, schools equipping labs, and shops needing consistent
+          supply of accessories or repair turnaround SLAs.
+        </p>
+      </InfoSection>
+      <InfoSection title="How to enquire">
+        <p>
+          Email <a href={`mailto:${email}?subject=Wholesale%20enquiry`}>{email}</a> with your business
+          name, rough quantities, and timeline. We respond with availability and MoMo / invoice options
+          in GHS.
+        </p>
+      </InfoSection>
+      <InfoSection title="Repairs at scale">
+        <p>
+          Fleet or shop accounts can arrange scheduled drop-offs and consolidated billing. See{" "}
+          <Link to="/repairs/how-we-quote">how we quote</Link> for the standard repair flow.
+        </p>
+      </InfoSection>
+    </InfoPage>
+  );
+}
+
 export function NotFoundPage() {
   return (
     <div className="page container" style={{ textAlign: "center", paddingBottom: "5rem" }}>

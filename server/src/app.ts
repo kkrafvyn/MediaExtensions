@@ -10,7 +10,7 @@ import connectPgSimple from "connect-pg-simple";
 import rateLimit from "express-rate-limit";
 import { eq } from "drizzle-orm";
 import { db, pool } from "./db/index.js";
-import { users } from "./db/schema.js";
+import { products, users } from "./db/schema.js";
 import type { AuthedRequest } from "./middleware/auth.js";
 import { GH_REGIONS, paymentInstructions } from "./lib/utils.js";
 import { ensureStoreConfig, loadStoreConfig } from "./lib/storeConfig.js";
@@ -24,6 +24,7 @@ import downloadRoutes from "./routes/downloads.js";
 import repairRoutes from "./routes/repairs.js";
 import staffRoutes from "./routes/staff.js";
 import contactRoutes from "./routes/contact.js";
+import trackPublicRoutes from "./routes/trackPublic.js";
 import { handlePaystackWebhook } from "./routes/paystackWebhook.js";
 import { vercelSession } from "./middleware/vercelSession.js";
 import { isAllowedOrigin } from "./lib/security.js";
@@ -213,6 +214,40 @@ app.use("/api/downloads", downloadRoutes);
 app.use("/api/repairs", repairRoutes);
 app.use("/api/staff", staffRoutes);
 app.use("/api/contact", contactRoutes);
+app.use("/api/track", trackPublicRoutes);
+
+app.get("/sitemap.xml", async (_req, res) => {
+  const base = CLIENT_URL.replace(/\/$/, "");
+  const activeProducts = await db
+    .select({ slug: products.slug, createdAt: products.createdAt })
+    .from(products)
+    .where(eq(products.active, true));
+  const staticPaths = [
+    "",
+    "shop",
+    "repairs",
+    "repairs/book",
+    "repairs/warranty",
+    "repairs/how-we-quote",
+    "wholesale",
+    "track",
+    "about",
+    "contact",
+    "shipping",
+    "returns",
+    "faq",
+    "pickup",
+  ];
+  const urls = [
+    ...staticPaths.map((p) => `${base}/${p}`.replace(/\/$/, "") || base),
+    ...activeProducts.map((p) => `${base}/product/${p.slug}`),
+  ];
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.map((loc) => `  <url><loc>${loc}</loc></url>`).join("\n")}
+</urlset>`;
+  res.type("application/xml").send(xml);
+});
 
 // Static SPA is handled by Vercel for production web; keep for Docker/self-host.
 if (process.env.VERCEL !== "1" && fs.existsSync(clientDist)) {
