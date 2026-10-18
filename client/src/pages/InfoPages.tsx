@@ -187,7 +187,7 @@ export function ShippingPage() {
       </InfoSection>
       <InfoSection title="Timing">
         <p>
-          Accra deliveries usually leave within 1–2 business days after payment confirmation.
+          Orders to the Greater Accra zone usually ship within 1–2 business days after payment confirmation (we dispatch from Koforidua).
           Regional orders typically arrive in 2–5 business days depending on courier routes.
         </p>
       </InfoSection>

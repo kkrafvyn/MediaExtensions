@@ -162,6 +162,17 @@ export function ImeiCheckPage() {
               {result.message}
             </p>
 
+            {result.valid && cleanImei.length === 15 && (
+              <div className="cta-row" style={{ marginBottom: "1.25rem" }}>
+                <Link to={`/repairs/book?imei=${cleanImei}`} className="btn btn-primary">
+                  Book repair with this IMEI
+                </Link>
+                <Link to="/repairs/how-we-quote" className="btn btn-light">
+                  How quoting works
+                </Link>
+              </div>
+            )}
+
             {result.tac && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "0.75rem", marginBottom: "1.25rem" }}>
                 <div style={{ background: "var(--surface)", padding: "0.6rem 0.85rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--line)" }}>
@@ -208,7 +219,7 @@ export function ImeiCheckPage() {
                 </a>
 
                 <Link
-                  to={`/repairs/book?issue=IMEI Check: ${cleanImei}`}
+                  to={`/repairs/book?imei=${cleanImei}`}
                   className="btn btn-primary"
                 >
                   Book GSM Repair with this IMEI

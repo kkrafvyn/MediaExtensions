@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Layout } from "./components/Layout";
 import { HomePage } from "./pages/HomePage";
 import { ShopPage } from "./pages/ShopPage";
@@ -73,6 +74,7 @@ function RouteFallback() {
 export default function App() {
   return (
     <AuthProvider>
+      <ErrorBoundary>
       <BrowserRouter>
         <Suspense fallback={<RouteFallback />}>
           <Routes>
@@ -129,6 +131,7 @@ export default function App() {
           </Routes>
         </Suspense>
       </BrowserRouter>
+      </ErrorBoundary>
     </AuthProvider>
   );
 }

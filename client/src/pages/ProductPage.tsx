@@ -25,6 +25,8 @@ export function ProductPage() {
     setProduct(null);
     setRelated([]);
     setError("");
+    setQuantity(1);
+    setActiveTab("overview");
     api<{ product: Product }>(`/api/products/${slug}`)
       .then((d) => {
         setProduct(d.product);
@@ -41,6 +43,39 @@ export function ProductPage() {
       })
       .catch((e) => setError(e.message));
   }, [slug]);
+
+  useEffect(() => {
+    if (!product) return;
+    const availability =
+      product.fulfillment === "digital"
+        ? "https://schema.org/InStock"
+        : product.stock > 0
+          ? "https://schema.org/InStock"
+          : "https://schema.org/OutOfStock";
+    const jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      name: product.name,
+      description: product.description?.slice(0, 500),
+      image: product.images?.[0],
+      offers: {
+        "@type": "Offer",
+        priceCurrency: "GHS",
+        price: (product.pricePesewas / 100).toFixed(2),
+        availability,
+        url: `${window.location.origin}/product/${product.slug}`,
+      },
+    };
+    const script = document.createElement("script");
+    script.type = "application/ld+json";
+    script.id = "product-json-ld";
+    script.text = JSON.stringify(jsonLd);
+    document.querySelector("#product-json-ld")?.remove();
+    document.head.appendChild(script);
+    return () => {
+      script.remove();
+    };
+  }, [product]);
 
   async function addToBag(directCheckout = false) {
     if (!product) return;
@@ -90,6 +125,9 @@ export function ProductPage() {
   const maxQty = hasPhysical ? Math.max(1, product.stock) : 99;
 
   const metaImage = product.images?.[0]?.startsWith("http") ? product.images[0] : undefined;
+
+  const tabId = (name: string) => `pdp-tab-${name}`;
+  const panelId = (name: string) => `pdp-panel-${name}`;
 
   return (
     <div className="page container product-page">
@@ -260,33 +298,32 @@ export function ProductPage() {
 
           {/* Tabs Details Section */}
           <div style={{ marginTop: "1.5rem" }}>
-            <div className="pdp-tabs">
-              <button
-                className={`pdp-tab-btn ${activeTab === "overview" ? "active" : ""}`}
-                aria-pressed={activeTab === "overview"}
-                onClick={() => setActiveTab("overview")}
-              >
-                Description
-              </button>
-              <button
-                className={`pdp-tab-btn ${activeTab === "specs" ? "active" : ""}`}
-                aria-pressed={activeTab === "specs"}
-                onClick={() => setActiveTab("specs")}
-              >
-                Details
-              </button>
-              <button
-                className={`pdp-tab-btn ${activeTab === "guarantee" ? "active" : ""}`}
-                aria-pressed={activeTab === "guarantee"}
-                onClick={() => setActiveTab("guarantee")}
-              >
-                Returns
-              </button>
+            <div className="pdp-tabs" role="tablist" aria-label="Product details">
+              {(
+                [
+                  ["overview", "Description"],
+                  ["specs", "Details"],
+                  ["guarantee", "Returns"],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  id={tabId(key)}
+                  aria-selected={activeTab === key}
+                  aria-controls={panelId(key)}
+                  className={`pdp-tab-btn ${activeTab === key ? "active" : ""}`}
+                  onClick={() => setActiveTab(key)}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
             <div className="pdp-tab-content">
               {activeTab === "overview" && (
-                <div>
+                <div role="tabpanel" id={panelId("overview")} aria-labelledby={tabId("overview")}>
                   <p style={{ marginBottom: "0.75rem", whiteSpace: "pre-wrap" }}>
                     {product.description || "Product details will appear here once added by the store."}
                   </p>
@@ -294,7 +331,7 @@ export function ProductPage() {
               )}
 
               {activeTab === "specs" && (
-                <div>
+                <div role="tabpanel" id={panelId("specs")} aria-labelledby={tabId("specs")}>
                   <ul style={{ paddingLeft: "1.2rem", lineHeight: 1.7 }}>
                     <li><strong>Format:</strong> {product.fulfillment === "digital" ? "Digital download" : product.fulfillment === "physical" ? "Physical item" : "Digital + physical"}</li>
                     {product.fulfillment !== "digital" && (
@@ -308,7 +345,7 @@ export function ProductPage() {
               )}
 
               {activeTab === "guarantee" && (
-                <div>
+                <div role="tabpanel" id={panelId("guarantee")} aria-labelledby={tabId("guarantee")}>
                   <ul style={{ paddingLeft: "1.2rem", lineHeight: 1.7 }}>
                     <li>See our <Link to="/returns">Returns</Link> and <Link to="/terms">Terms</Link> for warranty and refund details.</li>
                   </ul>

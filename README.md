@@ -1,6 +1,10 @@
 # Media Extensions
 
+![CI](https://github.com/kkrafvyn/MediaExtensions/actions/workflows/ci.yml/badge.svg)
+
 Ghana storefront for digital products, physical gear, and GSM repairs.
+
+Docs: [ARCHITECTURE.md](./ARCHITECTURE.md) · [RUNBOOK.md](./RUNBOOK.md) · [SECURITY.md](./SECURITY.md) · [DEMO.md](./DEMO.md) · [CASE_STUDY.md](./CASE_STUDY.md) · [docs/API.md](./docs/API.md)
 
 ## Stack
 

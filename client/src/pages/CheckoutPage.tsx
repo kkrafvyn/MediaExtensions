@@ -424,6 +424,21 @@ export function CheckoutPage() {
               </div>
             )}
 
+            {paymentMethod === "pay_on_pickup" && (
+              <p className="meta panel" style={{ marginTop: "0.75rem", padding: "0.85rem 1rem", fontSize: "0.88rem" }}>
+                Digital downloads unlock after staff confirms payment at pickup. Bring your order ID.
+              </p>
+            )}
+            {(paymentMethod === "momo" || paymentMethod === "bank") && (
+              <p className="meta panel" style={{ marginTop: "0.75rem", padding: "0.85rem 1rem", fontSize: "0.88rem" }}>
+                Send payment using the details above, then place the order. Staff confirms MoMo/bank payments before digital downloads unlock (usually within business hours).
+              </p>
+            )}
+            {paymentMethod === "paystack" && (
+              <p className="meta panel" style={{ marginTop: "0.75rem", padding: "0.85rem 1rem", fontSize: "0.88rem" }}>
+                Paystack unlocks digital downloads automatically after successful payment.
+              </p>
+            )}
             {(paymentMethod === "momo" || paymentMethod === "bank") && (
               <label style={{ marginTop: "0.5rem" }}>
                 Payment Reference / Transaction ID <span className="meta">(optional)</span>

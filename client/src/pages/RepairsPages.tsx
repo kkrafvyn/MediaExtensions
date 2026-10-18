@@ -40,6 +40,11 @@ export function RepairsPage() {
           <p className="lede" style={{ maxWidth: "38rem" }}>
             Screen replacements, battery servicing, liquid damage assessment, and board repairs. Choose a service or book diagnostics to get started.
           </p>
+          <p className="meta" style={{ marginTop: "0.75rem" }}>
+            <Link to="/repairs/how-we-quote">How we quote</Link>
+            {" · "}
+            <Link to="/repairs/warranty">Repair warranty</Link>
+          </p>
         </div>
       </header>
 
@@ -150,7 +155,15 @@ export function RepairBookPage() {
   const [issue, setIssue] = useState(params.get("issue") ?? "");
   const issueParam = params.get("issue") ?? "";
   const imeiFromIssue = issueParam.match(/IMEI Check:\s*(\d{15})/i)?.[1] ?? "";
-  const [imei, setImei] = useState(imeiFromIssue);
+  const imeiFromQuery = (params.get("imei") ?? "").replace(/\D/g, "");
+  const initialImei =
+    imeiFromQuery.length === 15 ? imeiFromQuery : imeiFromIssue;
+  const [imei, setImei] = useState(initialImei);
+
+  useEffect(() => {
+    const digits = (params.get("imei") ?? "").replace(/\D/g, "");
+    if (digits.length === 15) setImei(digits);
+  }, [params]);
   const [dropOffNotes, setDropOffNotes] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
