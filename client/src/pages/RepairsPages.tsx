@@ -88,6 +88,22 @@ export function RepairsPage() {
         </div>
       </div>
 
+      <section className="panel stack" style={{ marginBottom: "2.5rem" }}>
+        <h2 style={{ margin: 0, fontSize: "1.2rem" }}>How we quote</h2>
+        <p className="meta" style={{ margin: 0 }}>
+          From drop-off to pickup — you approve the quote before billable work starts.{" "}
+          <Link to="/repairs/how-we-quote">Full guide</Link>
+        </p>
+        <ol style={{ margin: "0.5rem 0 0", paddingLeft: "1.25rem", lineHeight: 1.7 }}>
+          {REPAIR_TRACK_STEPS.map((step, i) => (
+            <li key={step.key}>
+              <strong>{step.label}</strong>
+              {i === 2 ? " — we send a GHS quote; you approve or decline online." : null}
+            </li>
+          ))}
+        </ol>
+      </section>
+
       <div className="section-head">
         <h2>Choose a repair service</h2>
         <p>Not sure what’s wrong? Book a diagnostic assessment.</p>

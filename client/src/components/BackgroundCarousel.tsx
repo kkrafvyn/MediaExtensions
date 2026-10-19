@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 export type CarouselSlide = {
+  /** JPEG or fallback URL */
   src: string;
+  /** Optional WebP for lighter backgrounds */
+  srcWebp?: string;
   alt: string;
 };
 
@@ -63,7 +66,11 @@ export function BackgroundCarousel({
             <div
               key={slide.src}
               className={`bg-carousel-slide${i === index ? " is-active" : ""}`}
-              style={{ backgroundImage: `url(${slide.src})` }}
+              style={{
+                backgroundImage: slide.srcWebp
+                  ? `image-set(url("${slide.srcWebp}") type("image/webp"), url("${slide.src}") type("image/jpeg"))`
+                  : `url(${slide.src})`,
+              }}
             />
           ))}
           <div className="bg-carousel-veil" />
@@ -75,8 +82,24 @@ export function BackgroundCarousel({
 }
 
 export const APP_CAROUSEL: CarouselSlide[] = [
-  { src: "/images/carousel/carousel-camera.jpg", alt: "Professional camera gear" },
-  { src: "/images/carousel/carousel-editing.jpg", alt: "Color grading workstation" },
-  { src: "/images/carousel/carousel-gear.jpg", alt: "Creator production kit" },
-  { src: "/images/carousel/carousel-repair.jpg", alt: "Device repair studio" },
+  {
+    src: "/images/carousel/carousel-camera.jpg",
+    srcWebp: "/images/carousel/carousel-camera.webp",
+    alt: "Professional camera gear",
+  },
+  {
+    src: "/images/carousel/carousel-editing.jpg",
+    srcWebp: "/images/carousel/carousel-editing.webp",
+    alt: "Color grading workstation",
+  },
+  {
+    src: "/images/carousel/carousel-gear.jpg",
+    srcWebp: "/images/carousel/carousel-gear.webp",
+    alt: "Creator production kit",
+  },
+  {
+    src: "/images/carousel/carousel-repair.jpg",
+    srcWebp: "/images/carousel/carousel-repair.webp",
+    alt: "Device repair studio",
+  },
 ];

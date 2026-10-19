@@ -121,3 +121,12 @@ export function paystackRefundStatusForEvent(event: string): ReturnRequestStatus
   };
   return statuses[event] ?? null;
 }
+
+/** Terminal statuses: markOrderPaid skips stock/token side effects when already paid. */
+export function isOrderAlreadyPaid(status: string): boolean {
+  return status === "paid" || status === "fulfilled";
+}
+
+export function shouldFinalizeStockOnPaid(status: string): boolean {
+  return status === "pending_payment" || status === "awaiting_pickup";
+}

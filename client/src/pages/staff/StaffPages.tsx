@@ -7,6 +7,8 @@ import type { Category, Product, StaffAnalytics } from "../../types";
 import { GhsInput } from "./GhsInput";
 import { StaffListControls } from "./StaffListControls";
 import { staffListPath } from "./useStaffResource";
+import { formatAuditDetails } from "../../lib/formatAuditDetails";
+import { toast } from "../../components/Toast";
 
 function isStaffRole(role: string | undefined) {
   return role === "admin" || role === "manager" || role === "technician";
@@ -1068,6 +1070,7 @@ export function StaffAuditLogs() {
   };
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [error, setError] = useState("");
+  const [entityFilter, setEntityFilter] = useState("all");
 
   useEffect(() => {
     api<{ auditLogs: AuditEntry[] }>("/api/staff/audit-logs")
@@ -1075,25 +1078,42 @@ export function StaffAuditLogs() {
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load audit log"));
   }, []);
 
+  const entityTypes = Array.from(new Set(entries.map((e) => e.entityType))).sort();
+  const filtered =
+    entityFilter === "all" ? entries : entries.filter((e) => e.entityType === entityFilter);
+
   return (
     <div className="panel stack">
       <div>
         <h2 style={{ fontSize: "1.25rem", margin: 0 }}>Admin audit log</h2>
         <p className="meta" style={{ margin: 0 }}>Latest 200 sensitive staff actions.</p>
       </div>
+      {entityTypes.length > 1 && (
+        <label className="meta" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          Filter by record type
+          <select value={entityFilter} onChange={(e) => setEntityFilter(e.target.value)}>
+            <option value="all">All types</option>
+            {entityTypes.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {error && <div className="alert-banner" role="alert">{error}</div>}
-      {!error && entries.length === 0 ? <p className="meta">No audit events recorded yet.</p> : (
+      {!error && filtered.length === 0 ? <p className="meta">No audit events recorded yet.</p> : (
         <div style={{ overflowX: "auto" }}>
           <table className="table">
             <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Record</th><th>Details</th></tr></thead>
             <tbody>
-              {entries.map((entry) => (
+              {filtered.map((entry) => (
                 <tr key={entry.id}>
                   <td>{new Date(entry.createdAt).toLocaleString("en-GH")}</td>
                   <td>{entry.actor?.name ?? "Former staff"}<div className="meta">{entry.actor?.email}</div></td>
                   <td>{entry.action.replaceAll("_", " ")}</td>
                   <td>{entry.entityType} · {entry.entityId.slice(0, 8)}</td>
-                  <td><code>{JSON.stringify(entry.details)}</code></td>
+                  <td>{formatAuditDetails(entry.details)}</td>
                 </tr>
               ))}
             </tbody>
@@ -1199,8 +1219,8 @@ export function StaffProducts() {
     try {
       const url = await uploadStaffImage(file);
       setForm((f) => ({ ...f, imageUrl: url }));
-    } catch {
-      /* ignore — create still works with default */
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Image upload failed");
     }
   }
 
@@ -1215,6 +1235,8 @@ export function StaffProducts() {
         body: JSON.stringify({ images }),
       });
       await load();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Could not upload image");
     } finally {
       setUploadingId(null);
     }
@@ -1225,8 +1247,8 @@ export function StaffProducts() {
     try {
       const assetPath = await uploadDigitalAsset(file);
       setForm((f) => ({ ...f, digitalAssetPath: assetPath }));
-    } catch {
-      /* ignore */
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Digital file upload failed");
     }
   }
 
@@ -1240,6 +1262,8 @@ export function StaffProducts() {
         body: JSON.stringify({ digitalAssetPath: assetPath }),
       });
       await load();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Could not upload digital file");
     } finally {
       setUploadingDigitalId(null);
     }

@@ -63,10 +63,14 @@ async function main() {
       const p = row(prodRes);
       const c = row(catRes);
       const s = row(servRes);
+      const skipCatalog = process.env.SKIP_CATALOG_CHECK === "1";
+      const catalogOk = p > 0 && s > 0;
       checks.push({
         name: "Catalog populated",
-        ok: p > 0 && s > 0,
-        detail: `products=${p}, categories=${c}, repair_services=${s}`,
+        ok: skipCatalog || catalogOk,
+        detail: skipCatalog
+          ? `skipped (SKIP_CATALOG_CHECK=1) — products=${p}, repair_services=${s}`
+          : `products=${p}, categories=${c}, repair_services=${s}`,
       });
     } catch (err) {
       checks.push({

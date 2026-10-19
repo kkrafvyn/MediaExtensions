@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { usePageTitle } from "../lib/usePageTitle";
+import { getRouteMeta } from "../lib/routeMeta";
+import { PageMeta } from "./PageMeta";
 import { ToastHost } from "./Toast";
 import { Footer } from "./Footer";
 import { CartDrawer } from "./CartDrawer";
@@ -26,6 +28,7 @@ export function Layout() {
   const showMediaBackground = !onStaffRoute;
 
   usePageTitle(location.pathname);
+  const routeMeta = getRouteMeta(location.pathname);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -74,6 +77,7 @@ export function Layout() {
 
   return (
     <div className={`shell${showMediaBackground ? " shell-on-media" : ""}`}>
+      {routeMeta && <PageMeta title={routeMeta.title} description={routeMeta.description} />}
       {showMediaBackground && (
         <BackgroundCarousel slides={APP_CAROUSEL} fixed showDots={false} />
       )}

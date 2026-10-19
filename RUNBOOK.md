@@ -3,7 +3,7 @@
 ## Go-live checklist (manual ops)
 
 1. **Migrations** — On production Neon: `npm run db:migrate` (includes 0014 security + 0015 roles/GSM).
-2. **Verify** — `npm run production-check` (from `server/` with `DATABASE_URL` in `.env`).
+2. **Verify** — `npm run production-check` (from repo root with `server/.env` loaded). While rebuilding catalog after a purge, use `SKIP_CATALOG_CHECK=1` so migration/env checks still run without failing on empty products.
 3. **Catalog** — Staff → Categories → Products → Repair services (not seeded by default).
 4. **Store settings** — Staff → Settings: MoMo, bank, pickup (Koforidua), contact phone/WhatsApp/email.
 5. **Vercel env** — `DATABASE_URL`, `SESSION_SECRET`, `CLIENT_URL`, `PAYSTACK_*`, `STORAGE_DRIVER=s3` + R2 vars.

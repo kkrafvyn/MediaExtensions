@@ -151,10 +151,12 @@ export function ProductPage() {
       <div className="product-detail-layout">
         {/* Left Column: Gallery Card */}
         <div>
-          <div className="product-gallery-card">
+          <div className="product-gallery-card product-gallery-main">
             <img
               src={selectedImage || images[0]}
               alt={product.name}
+              width={960}
+              height={960}
             />
           </div>
 

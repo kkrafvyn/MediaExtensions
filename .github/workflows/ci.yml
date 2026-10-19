@@ -22,3 +22,8 @@ jobs:
         env:
           SKIP_INTEGRATION: "1"
           DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?sslmode=disable
+      - name: Production check (env-only, no DB)
+        run: npm run production-check -w server
+        env:
+          SKIP_CATALOG_CHECK: "1"
+        continue-on-error: true

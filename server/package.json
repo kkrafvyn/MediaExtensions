@@ -13,6 +13,7 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:purge-catalog": "tsx scripts/purge-catalog.ts",
     "production-check": "tsx scripts/production-check.ts",
+    "assets:carousel-webp": "node scripts/convert-carousel-webp.mjs",
     "backup": "node scripts/backup.mjs",
     "vercel-build": "node scripts/vercel-build.mjs"
   },
@@ -49,6 +50,7 @@
     "@types/ws": "^8.18.0",
     "drizzle-kit": "^0.30.5",
     "esbuild": "^0.25.0",
+    "sharp": "^0.35.5",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2"
   }

@@ -9,7 +9,6 @@ import {
   IconPin,
   IconArrowRight,
 } from "../components/Icons";
-import { PageMeta } from "../components/PageMeta";
 import type { Product, RepairService } from "../types";
 
 const HOME_JSON_LD = {
@@ -67,10 +66,6 @@ export function HomePage() {
 
   return (
     <>
-      <PageMeta
-        title="Shop & repairs"
-        description="Presets, plugins, camera gear, and GSM repairs in Koforidua. Prices in Ghana cedis."
-      />
       <section className="hero">
         <div className="container hero-layout">
         <div className="hero-copy">
@@ -94,7 +89,16 @@ export function HomePage() {
           <Link to="/track" className="hero-track-link">Already ordered? Track your order <IconArrowRight size={14} /></Link>
         </div>
         <figure className="hero-visual">
-          <img src="/images/carousel/carousel-camera.jpg" alt="Camera and lens on a studio desk" width="1280" height="720" fetchPriority="high" />
+          <picture>
+            <source srcSet="/images/carousel/carousel-camera.webp" type="image/webp" />
+            <img
+              src="/images/carousel/carousel-camera.jpg"
+              alt="Camera and lens on a studio desk"
+              width="1280"
+              height="720"
+              fetchPriority="high"
+            />
+          </picture>
           <figcaption><span>From the first frame to the final edit.</span><Link to="/shop?fulfillment=physical">Explore gear <IconArrowRight size={16} /></Link></figcaption>
         </figure>
         </div>

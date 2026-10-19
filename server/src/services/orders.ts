@@ -10,6 +10,7 @@ import {
 import { notifyOrderEvent } from "../lib/notify.js";
 import { sendDownloadLinks, sendOrderConfirmation } from "../lib/mailer.js";
 import { formatGhs } from "../lib/utils.js";
+import { isOrderAlreadyPaid, shouldFinalizeStockOnPaid } from "../lib/orderTransitions.js";
 
 function needsPhysicalStock(fulfillment: string): boolean {
   return fulfillment === "physical" || fulfillment === "both";
@@ -191,12 +192,11 @@ export async function markOrderPaid(orderId: string) {
   });
   if (!order) return null;
 
-  if (order.status === "paid" || order.status === "fulfilled") {
+  if (isOrderAlreadyPaid(order.status)) {
     return order;
   }
 
-  const wasHolding =
-    order.status === "pending_payment" || order.status === "awaiting_pickup";
+  const wasHolding = shouldFinalizeStockOnPaid(order.status);
 
   const [claimed] = await db
     .update(orders)

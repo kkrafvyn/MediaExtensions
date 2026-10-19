@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { ProductCard } from "../components/ProductCard";
 import { QuickViewModal } from "../components/QuickViewModal";
 import { IconClose, IconPackage } from "../components/Icons";
+import { EmptyState } from "../components/EmptyState";
 import type { Category, Product } from "../types";
 
 type SortOption = "featured" | "price-asc" | "price-desc" | "name-asc";
@@ -273,27 +274,23 @@ export function ShopPage() {
               </div>
             )}
           </>
+        ) : hasFilters ? (
+          <EmptyState title="No matches" description="Try a different search or clear filters to see everything.">
+            <button type="button" className="btn btn-dark" onClick={resetFilters}>
+              Clear filters
+            </button>
+          </EmptyState>
         ) : (
-          <div className="shop-empty">
-            <div className="shop-empty-icon">
+          <EmptyState
+            title="Store is empty"
+            description="The catalog is being updated. You can still book GSM repairs or contact us for wholesale."
+            actionLabel="View repair services"
+            actionTo="/repairs"
+          >
+            <div className="shop-empty-icon" style={{ marginInline: "auto" }}>
               <IconPackage size={40} />
             </div>
-            <h2>{hasFilters ? "No matches" : "Store is empty"}</h2>
-            <p>
-              {hasFilters
-                ? "Try a different search or clear filters to see everything."
-                : "The catalog is being updated. You can still browse our repair services."}
-            </p>
-            {hasFilters ? (
-              <button className="btn btn-dark" type="button" onClick={resetFilters}>
-                Clear filters
-              </button>
-            ) : (
-              <Link to="/repairs" className="btn btn-light">
-                View repair services
-              </Link>
-            )}
-          </div>
+          </EmptyState>
         )}
       </div>
 

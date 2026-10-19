@@ -1581,6 +1581,12 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 .section-head h2 { font-size: clamp(1.6rem, 3.2vw, 2.2rem); letter-spacing: -0.045em; line-height: 1.25; }
 .section-head .eyebrow { margin-bottom: 0.65rem; }
 .category-card, .repair-step-card, .service-card-modern, .product-tile, .panel { background: var(--surface-card); box-shadow: none; backdrop-filter: none; border-radius: 12px; }
+.staff-shell .panel,
+.staff-shell .staff-nav,
+.staff-shell .staff-header {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
 .category-card { padding: 1.75rem; }
 .category-card:hover, .repair-step-card:hover, .service-card-modern:hover, .product-tile:hover { box-shadow: none; transform: translateY(-2px); }
 .category-card-icon { width: 2.5rem; height: 2.5rem; border-radius: 8px; box-shadow: none; margin-bottom: 1.75rem; background: var(--surface-hover); }

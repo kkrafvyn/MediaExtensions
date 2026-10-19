@@ -4,7 +4,13 @@
 
 Ghana storefront for digital products, physical gear, and GSM repairs.
 
-Docs: [ARCHITECTURE.md](./ARCHITECTURE.md) · [RUNBOOK.md](./RUNBOOK.md) · [SECURITY.md](./SECURITY.md) · [DEMO.md](./DEMO.md) · [CASE_STUDY.md](./CASE_STUDY.md) · [docs/API.md](./docs/API.md)
+Docs: [ARCHITECTURE.md](./ARCHITECTURE.md) · [RUNBOOK.md](./RUNBOOK.md) · [SECURITY.md](./SECURITY.md) · [DEMO.md](./DEMO.md) · [CASE_STUDY.md](./CASE_STUDY.md) · [docs/API.md](./docs/API.md) · [design/branding/UI.md](./design/branding/UI.md)
+
+## Live site
+
+Set `CLIENT_URL` in Vercel to your custom domain (recommended over `*.vercel.app` alone). Production storefront: **configure in Vercel** — after deploy, paste the public URL here for portfolio/README.
+
+Record a short demo video using [DEMO.md](./DEMO.md); add screenshots under [design/branding/screenshots/](./design/branding/screenshots/).
 
 ## Stack
 

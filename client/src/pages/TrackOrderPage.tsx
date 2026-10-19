@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api, formatGhs } from "../lib/api";
 import { IconCheck } from "../components/Icons";
 import { CopyButton } from "../components/CopyButton";
+import { StatusChip } from "../components/StatusChip";
 import {
   REPAIR_TRACK_STEPS,
   orderTimelineIndex,
@@ -180,7 +181,7 @@ export function TrackOrderPage() {
 
           <div className="line-item">
             <span>Status</span>
-            <span className={`status-chip ${order.status === "paid" || order.status === "fulfilled" ? "status-paid" : order.status === "cancelled" ? "status-cancelled" : "status-pending"}`}>{order.status.replaceAll("_", " ")}</span>
+            <StatusChip status={order.status} />
           </div>
 
           <div className="line-item">
@@ -305,7 +306,7 @@ export function TrackOrderPage() {
 
           <div className="line-item">
             <span>Status</span>
-            <span className="status-chip status-pending">{repair.status.replaceAll("_", " ")}</span>
+            <StatusChip status={repair.status} />
           </div>
 
           <div className="line-item">

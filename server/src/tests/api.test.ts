@@ -7,8 +7,10 @@ import {
   canTransitionOrderStatus,
   canTransitionRepairStatus,
   canTransitionReturnStatus,
+  isOrderAlreadyPaid,
   isPhysicalReturnEligible,
   paystackRefundStatusForEvent,
+  shouldFinalizeStockOnPaid,
 } from "../lib/orderTransitions.js";
 import { signSessionPayload, vercelSession, verifySessionPayload } from "../middleware/vercelSession.js";
 import type { Request, Response } from "express";
@@ -254,5 +256,20 @@ describe("hashPasswordResetToken", () => {
   it("hashes reset tokens consistently", () => {
     assert.equal(hashPasswordResetToken("abc"), hashPasswordResetToken("abc"));
     assert.notEqual(hashPasswordResetToken("abc"), "abc");
+  });
+});
+
+describe("markOrderPaid idempotency helpers", () => {
+  it("treats paid and fulfilled as terminal", () => {
+    assert.equal(isOrderAlreadyPaid("paid"), true);
+    assert.equal(isOrderAlreadyPaid("fulfilled"), true);
+    assert.equal(isOrderAlreadyPaid("pending_payment"), false);
+    assert.equal(isOrderAlreadyPaid("awaiting_pickup"), false);
+  });
+
+  it("finalizes reserved stock only from holding statuses", () => {
+    assert.equal(shouldFinalizeStockOnPaid("pending_payment"), true);
+    assert.equal(shouldFinalizeStockOnPaid("awaiting_pickup"), true);
+    assert.equal(shouldFinalizeStockOnPaid("paid"), false);
   });
 });
