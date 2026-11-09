@@ -1,5 +1,7 @@
 # Demo script (~2 minutes)
 
+**Live:** [https://www.mediaextensions.org/](https://www.mediaextensions.org/)
+
 1. **Storefront** — Home → Shop (featured products) → product → add to cart.
 2. **Guest checkout** — MoMo or Paystack path; show order status page.
 3. **Track** — `/track` with email + order UUID; copy share link (track token).

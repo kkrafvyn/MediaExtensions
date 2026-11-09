@@ -17,4 +17,4 @@ This project works with **Root Directory = `server`** (your current Vercel setti
 
 ## Env vars
 
-Set from `.env.example` / `server/.env` (at least `DATABASE_URL`, `SESSION_SECRET`, `CLIENT_URL`). For paid digital sales on Vercel also configure SMTP and S3/R2 storage.
+Set from `.env.example` / `server/.env` (at least `DATABASE_URL`, `SESSION_SECRET`, `CLIENT_URL=https://www.mediaextensions.org`). For paid digital sales on Vercel also configure SMTP, S3/R2 storage, and Paystack (`PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY`, `PAYSTACK_CALLBACK_URL=https://www.mediaextensions.org/checkout/paystack-return`). Dashboard webhook: `https://www.mediaextensions.org/api/checkout/paystack/webhook`.

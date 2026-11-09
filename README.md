@@ -8,9 +8,9 @@ Docs: [ARCHITECTURE.md](./ARCHITECTURE.md) · [RUNBOOK.md](./RUNBOOK.md) · [SEC
 
 ## Live site
 
-Set `CLIENT_URL` in Vercel to your custom domain (recommended over `*.vercel.app` alone). Production storefront: **configure in Vercel** — after deploy, paste the public URL here for portfolio/README.
+**https://www.mediaextensions.org/**
 
-Record a short demo video using [DEMO.md](./DEMO.md); add screenshots under [design/branding/screenshots/](./design/branding/screenshots/).
+Set Vercel env `CLIENT_URL=https://www.mediaextensions.org` (and `PAYSTACK_CALLBACK_URL` to match). Record a short demo using [DEMO.md](./DEMO.md); add screenshots under [design/branding/screenshots/](./design/branding/screenshots/).
 
 ## Stack
 
@@ -114,8 +114,8 @@ See **[VERCEL.md](./VERCEL.md)** for the current setup.
 2. Import the project in Vercel with **Root Directory = `server`**, **Output Directory = `www`**.
 3. Set env vars from `.env.example` (at least `DATABASE_URL`, `SESSION_SECRET`, `CLIENT_URL`).
 4. Optionally set `RUN_DB_MIGRATE=1` on the build to run migrations automatically (requires `DATABASE_URL` at build time).
-5. Set `PAYSTACK_WEBHOOK_URL` in Paystack dashboard to `https://YOUR_DOMAIN/api/checkout/paystack/webhook`.
-6. After first deploy, set `CLIENT_URL` and `PAYSTACK_CALLBACK_URL` to your production URL.
+5. Set Paystack dashboard webhook to `https://www.mediaextensions.org/api/checkout/paystack/webhook`.
+6. Set `CLIENT_URL=https://www.mediaextensions.org` and `PAYSTACK_CALLBACK_URL=https://www.mediaextensions.org/checkout/paystack-return`.
 
 Local Docker / Render remain supported via `Dockerfile` and `render.yaml`.
 

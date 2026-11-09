@@ -13,7 +13,7 @@ A Koforidua shop selling digital presets, physical creator gear, and GSM repairs
 
 ## Outcomes
 
-- One URL for shop, checkout, repair booking, and self-service tracking.
+- Live at [https://www.mediaextensions.org/](https://www.mediaextensions.org/) — shop, checkout, repair booking, and self-service tracking.
 - Staff roles: admin, manager, technician, with pagination and exports on high-volume lists.
 - Production runbook, CI build/tests, sitemap, and structured data for discoverability.
 

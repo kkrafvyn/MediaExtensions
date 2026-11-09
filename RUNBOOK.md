@@ -6,9 +6,15 @@
 2. **Verify** — `npm run production-check` (from repo root with `server/.env` loaded). While rebuilding catalog after a purge, use `SKIP_CATALOG_CHECK=1` so migration/env checks still run without failing on empty products.
 3. **Catalog** — Staff → Categories → Products → Repair services (not seeded by default).
 4. **Store settings** — Staff → Settings: MoMo, bank, pickup (Koforidua), contact phone/WhatsApp/email.
-5. **Vercel env** — `DATABASE_URL`, `SESSION_SECRET`, `CLIENT_URL`, `PAYSTACK_*`, `STORAGE_DRIVER=s3` + R2 vars.
-6. **Paystack webhook** — `https://YOUR_DOMAIN/api/checkout/paystack/webhook`.
+5. **Vercel env** — `DATABASE_URL`, `SESSION_SECRET`, `CLIENT_URL=https://www.mediaextensions.org`, `PAYSTACK_*`, `STORAGE_DRIVER=s3` + R2 vars.
+6. **Paystack webhook** — `https://www.mediaextensions.org/api/checkout/paystack/webhook` (callback: `https://www.mediaextensions.org/checkout/paystack-return`).
 7. **Backup** — `npm run backup` before `PURGE_CATALOG_CONFIRM=1 npm run db:purge-catalog`.
+
+## Production domain
+
+Live storefront: **https://www.mediaextensions.org/**
+
+Confirm in Vercel that `CLIENT_URL` matches this origin (CORS, session cookies, share links, Paystack callback).
 
 ## Common symptoms
 
