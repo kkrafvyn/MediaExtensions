@@ -287,6 +287,7 @@ export const repairOrders = pgTable("repair_orders", {
   paymentMethod: paymentMethodEnum("payment_method"),
   paymentStatus: text("payment_status").notNull().default("unpaid"),
   quotePesewas: integer("quote_pesewas"),
+  paystackReference: text("paystack_reference"),
   staffNotes: text("staff_notes"),
   imei: text("imei"),
   quoteDecision: text("quote_decision").notNull().default("pending"),

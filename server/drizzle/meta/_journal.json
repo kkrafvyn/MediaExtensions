@@ -113,6 +113,13 @@
       "when": 1791101000000,
       "tag": "0015_roles_gsm_upgrade",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791200000000,
+      "tag": "0016_repair_paystack",
+      "breakpoints": true
     }
   ]
 }

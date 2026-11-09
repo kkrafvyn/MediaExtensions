@@ -107,9 +107,11 @@ router.post("/", async (req: AuthedRequest, res) => {
   if (paymentMethod === "paystack" && paystackReference) {
     try {
       paystackInit = await initializeTransaction({
+        channel: "shop",
         email: parsed.data.email.toLowerCase(),
         amountPesewas: totalPesewas,
         reference: paystackReference,
+        metadata: { orderKind: "shop" },
       });
     } catch (err) {
       console.error("[paystack] initialize error", err);

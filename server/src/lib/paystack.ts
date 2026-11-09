@@ -1,12 +1,49 @@
 const PAYSTACK_BASE = "https://api.paystack.co";
 
+export type PaystackChannel = "shop" | "repair";
+
 function secretKey(): string | null {
   const key = process.env.PAYSTACK_SECRET_KEY?.trim();
   return key || null;
 }
 
+export function publicKey(): string {
+  return process.env.PAYSTACK_PUBLIC_KEY?.trim() ?? "";
+}
+
 export function isPaystackConfigured(): boolean {
-  return Boolean(secretKey());
+  return Boolean(secretKey() && publicKey());
+}
+
+export function subaccountFor(channel: PaystackChannel): string | null {
+  const key =
+    channel === "shop"
+      ? process.env.PAYSTACK_SHOP_SUBACCOUNT
+      : process.env.PAYSTACK_REPAIR_SUBACCOUNT;
+  const code = key?.trim();
+  return code || null;
+}
+
+export function isSubaccountConfigured(channel: PaystackChannel): boolean {
+  return Boolean(subaccountFor(channel));
+}
+
+function defaultCallback(channel: PaystackChannel): string {
+  const client = (process.env.CLIENT_URL ?? "http://localhost:5173").replace(/\/$/, "");
+  if (channel === "repair") {
+    return (
+      process.env.PAYSTACK_REPAIR_CALLBACK_URL?.trim() ||
+      `${client}/repairs/paystack-return`
+    );
+  }
+  return (
+    process.env.PAYSTACK_CALLBACK_URL?.trim() || `${client}/checkout/paystack-return`
+  );
+}
+
+function feeBearer(): "account" | "subaccount" {
+  const raw = process.env.PAYSTACK_BEARER?.trim().toLowerCase();
+  return raw === "subaccount" ? "subaccount" : "account";
 }
 
 export type PaystackInitResult = {
@@ -16,6 +53,7 @@ export type PaystackInitResult = {
 };
 
 export async function initializeTransaction(opts: {
+  channel: PaystackChannel;
   email: string;
   amountPesewas: number;
   reference: string;
@@ -28,23 +66,37 @@ export async function initializeTransaction(opts: {
     return null;
   }
 
+  const subaccount = subaccountFor(opts.channel);
+  if (!subaccount) {
+    console.warn(
+      `[paystack] ${opts.channel} subaccount not set — settlement stays on main account`,
+    );
+  }
+
+  const body: Record<string, unknown> = {
+    email: opts.email,
+    amount: opts.amountPesewas,
+    currency: "GHS",
+    reference: opts.reference,
+    callback_url: opts.callback_url ?? defaultCallback(opts.channel),
+    metadata: {
+      ...opts.metadata,
+      channel: opts.channel,
+    },
+  };
+
+  if (subaccount) {
+    body.subaccount = subaccount;
+    body.bearer = feeBearer();
+  }
+
   const res = await fetch(`${PAYSTACK_BASE}/transaction/initialize`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${key}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      email: opts.email,
-      amount: opts.amountPesewas,
-      currency: "GHS",
-      reference: opts.reference,
-      callback_url:
-        opts.callback_url ??
-        process.env.PAYSTACK_CALLBACK_URL ??
-        `${process.env.CLIENT_URL ?? "http://localhost:5173"}/checkout/paystack-return`,
-      metadata: opts.metadata,
-    }),
+    body: JSON.stringify(body),
   });
 
   const json = (await res.json()) as {

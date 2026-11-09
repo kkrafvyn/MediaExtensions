@@ -191,6 +191,8 @@ app.get("/api/meta", async (_req, res) => {
     storeEmail: payments.store.email,
     paystackEnabled: payments.paystackEnabled,
     paystackPublicKey: payments.paystackPublicKey,
+    paystackShopSubaccountConfigured: payments.paystackShopSubaccountConfigured,
+    paystackRepairSubaccountConfigured: payments.paystackRepairSubaccountConfigured,
     lowStockThreshold: config.lowStockThreshold,
   });
 });

@@ -87,6 +87,8 @@ export type SiteMeta = {
   store?: { phone?: string; whatsapp?: string; email?: string };
   paystackPublicKey?: string | null;
   paystackEnabled?: boolean;
+  paystackShopSubaccountConfigured?: boolean;
+  paystackRepairSubaccountConfigured?: boolean;
   lowStockThreshold?: number;
 };
 

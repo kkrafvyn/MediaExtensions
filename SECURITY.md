@@ -18,8 +18,10 @@ Public order/repair detail: owner session, logged-in user, staff, or track token
 
 ## Payments
 
-- Paystack: HMAC webhook signature; verify amount and GHS on callback.
-- `markOrderPaid`: conditional update to avoid double side effects.
+- Paystack: one merchant secret; HMAC webhook signature; verify amount and GHS on callback/verify.
+- Shop vs repairs: same keys, different **subaccount** codes on initialize (`PAYSTACK_SHOP_SUBACCOUNT` / `PAYSTACK_REPAIR_SUBACCOUNT`). Never expose subaccount codes to the public client.
+- Shared webhook resolves `paystack_reference` on orders first, then repair tickets.
+- `markOrderPaid` / `markRepairPaidByPaystack`: conditional updates to avoid double side effects.
 
 ## Rate limiting
 

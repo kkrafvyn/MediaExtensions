@@ -8,7 +8,7 @@ import { ShopPage } from "./pages/ShopPage";
 import { ProductPage } from "./pages/ProductPage";
 import { CartPage } from "./pages/CartPage";
 import { CheckoutPage } from "./pages/CheckoutPage";
-import { PaystackReturnPage } from "./pages/PaystackReturnPage";
+import { PaystackReturnPage, RepairPaystackReturnPage } from "./pages/PaystackReturnPage";
 import { OrderPage } from "./pages/OrderPage";
 import { TrackOrderPage } from "./pages/TrackOrderPage";
 import { TrackSharePage } from "./pages/TrackSharePage";
@@ -100,6 +100,7 @@ export default function App() {
               <Route path="repairs/book" element={<RepairBookPage />} />
               <Route path="repairs/warranty" element={<RepairWarrantyPage />} />
               <Route path="repairs/how-we-quote" element={<RepairHowWeQuotePage />} />
+              <Route path="repairs/paystack-return" element={<RepairPaystackReturnPage />} />
               <Route path="repairs/status/:id" element={<RepairStatusPage />} />
               <Route path="repairs/status/:id/receipt" element={<RepairReceiptPage />} />
               <Route path="imei-check" element={<ImeiCheckPage />} />

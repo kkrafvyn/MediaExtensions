@@ -48,8 +48,8 @@ async function main() {
       const migrationCount = Number(migRows[0]?.count ?? 0);
       checks.push({
         name: "Database migrations",
-        ok: migrationCount >= 16,
-        detail: migrationCount ? `${migrationCount} applied (expect ≥16)` : "could not read __drizzle_migrations",
+        ok: migrationCount >= 17,
+        detail: migrationCount ? `${migrationCount} applied (expect ≥17)` : "could not read __drizzle_migrations",
       });
       const [prodRes, catRes, servRes] = await Promise.all([
         db.execute<{ count: number }>(sql`SELECT count(*)::int AS count FROM products`),

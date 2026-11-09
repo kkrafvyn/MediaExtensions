@@ -410,6 +410,7 @@ export function RepairStatusPage() {
   const [repair, setRepair] = useState<RepairDetail | null>(null);
   const [error, setError] = useState("");
   const [quoteBusy, setQuoteBusy] = useState(false);
+  const [payBusy, setPayBusy] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -570,6 +571,43 @@ export function RepairStatusPage() {
             </div>
           </div>
         )}
+
+        {meta?.paystackEnabled &&
+          repair.paymentStatus === "unpaid" &&
+          repair.quotePesewas != null &&
+          repair.quotePesewas > 0 &&
+          repair.quoteDecision !== "declined" &&
+          repair.status !== "cancelled" &&
+          (repair.quoteDecision === "approved" || repair.status !== "quoted") && (
+            <div className="panel stack" style={{ marginTop: "0.5rem" }}>
+              <p className="meta" style={{ margin: 0 }}>
+                Pay the approved quote securely with Paystack (card / MoMo). Settles to our repairs account.
+              </p>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={payBusy}
+                onClick={async () => {
+                  setPayBusy(true);
+                  setError("");
+                  try {
+                    const res = await api<{ authorizationUrl?: string; authorization_url?: string }>(
+                      `/api/repairs/${repair.id}/paystack`,
+                      { method: "POST", body: "{}" },
+                    );
+                    const url = res.authorizationUrl ?? res.authorization_url;
+                    if (!url) throw new Error("No Paystack URL returned");
+                    window.location.href = url;
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : "Could not start Paystack payment");
+                    setPayBusy(false);
+                  }
+                }}
+              >
+                {payBusy ? "Redirecting…" : `Pay ${formatGhs(repair.quotePesewas)} with Paystack`}
+              </button>
+            </div>
+          )}
 
         {/* WhatsApp Direct Support */}
         <div

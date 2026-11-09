@@ -26,13 +26,17 @@ export function shippingPesewasForRegion(region: string): number {
 
 export function paymentInstructions() {
   const config = getStoreConfigSync();
+  const secret = Boolean(process.env.PAYSTACK_SECRET_KEY?.trim());
+  const publicKey = process.env.PAYSTACK_PUBLIC_KEY?.trim() ?? "";
   return {
     momo: config.momo,
     bank: config.bank,
     pickup: config.pickup,
     store: config.store,
-    paystackEnabled: Boolean(process.env.PAYSTACK_SECRET_KEY?.trim()),
-    paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY ?? "",
+    paystackEnabled: secret && Boolean(publicKey),
+    paystackPublicKey: publicKey,
+    paystackShopSubaccountConfigured: Boolean(process.env.PAYSTACK_SHOP_SUBACCOUNT?.trim()),
+    paystackRepairSubaccountConfigured: Boolean(process.env.PAYSTACK_REPAIR_SUBACCOUNT?.trim()),
   };
 }
 

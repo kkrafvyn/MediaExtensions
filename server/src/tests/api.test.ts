@@ -15,7 +15,7 @@ import {
 import { signSessionPayload, vercelSession, verifySessionPayload } from "../middleware/vercelSession.js";
 import type { Request, Response } from "express";
 import { hashEmailVerificationToken, hashPasswordResetToken, isAllowedOrigin, newPasswordSchema } from "../lib/security.js";
-import { initiateRefund } from "../lib/paystack.js";
+import { initiateRefund, isSubaccountConfigured, subaccountFor } from "../lib/paystack.js";
 import { decryptTotpSecret, encryptTotpSecret, generateRecoveryCodes, generateTotpCode, generateTotpSecret, hashRecoveryCode, totpSetupUri, verifyTotp } from "../lib/totp.js";
 
 describe("slugify", () => {
@@ -271,5 +271,25 @@ describe("markOrderPaid idempotency helpers", () => {
     assert.equal(shouldFinalizeStockOnPaid("pending_payment"), true);
     assert.equal(shouldFinalizeStockOnPaid("awaiting_pickup"), true);
     assert.equal(shouldFinalizeStockOnPaid("paid"), false);
+  });
+});
+
+describe("Paystack channel subaccounts", () => {
+  it("reads shop and repair subaccount codes independently", () => {
+    const prevShop = process.env.PAYSTACK_SHOP_SUBACCOUNT;
+    const prevRepair = process.env.PAYSTACK_REPAIR_SUBACCOUNT;
+    process.env.PAYSTACK_SHOP_SUBACCOUNT = "ACCT_shop_test";
+    process.env.PAYSTACK_REPAIR_SUBACCOUNT = "ACCT_repair_test";
+    assert.equal(subaccountFor("shop"), "ACCT_shop_test");
+    assert.equal(subaccountFor("repair"), "ACCT_repair_test");
+    assert.equal(isSubaccountConfigured("shop"), true);
+    assert.equal(isSubaccountConfigured("repair"), true);
+    delete process.env.PAYSTACK_SHOP_SUBACCOUNT;
+    assert.equal(subaccountFor("shop"), null);
+    assert.equal(isSubaccountConfigured("shop"), false);
+    if (prevShop === undefined) delete process.env.PAYSTACK_SHOP_SUBACCOUNT;
+    else process.env.PAYSTACK_SHOP_SUBACCOUNT = prevShop;
+    if (prevRepair === undefined) delete process.env.PAYSTACK_REPAIR_SUBACCOUNT;
+    else process.env.PAYSTACK_REPAIR_SUBACCOUNT = prevRepair;
   });
 });

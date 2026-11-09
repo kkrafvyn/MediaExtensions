@@ -115,7 +115,7 @@ See **[VERCEL.md](./VERCEL.md)** for the current setup.
 3. Set env vars from `.env.example` (at least `DATABASE_URL`, `SESSION_SECRET`, `CLIENT_URL`).
 4. Optionally set `RUN_DB_MIGRATE=1` on the build to run migrations automatically (requires `DATABASE_URL` at build time).
 5. Set Paystack dashboard webhook to `https://www.mediaextensions.org/api/checkout/paystack/webhook`.
-6. Set `CLIENT_URL=https://www.mediaextensions.org` and `PAYSTACK_CALLBACK_URL=https://www.mediaextensions.org/checkout/paystack-return`.
+6. Set `CLIENT_URL=https://www.mediaextensions.org`, shop/repair callbacks, and `PAYSTACK_SHOP_SUBACCOUNT` / `PAYSTACK_REPAIR_SUBACCOUNT`.
 
 Local Docker / Render remain supported via `Dockerfile` and `render.yaml`.
 

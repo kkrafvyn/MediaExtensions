@@ -2,12 +2,13 @@ import crypto from "node:crypto";
 import type { Request, Response } from "express";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { orderReturns, orders } from "../db/schema.js";
+import { orderReturns, orders, repairOrders } from "../db/schema.js";
 import { recordAuditLog } from "../lib/audit.js";
 import { paystackRefundStatusForEvent, canTransitionReturnStatus } from "../lib/orderTransitions.js";
-import { initiateRefund, verifyTransaction } from "../lib/paystack.js";
+import { verifyTransaction } from "../lib/paystack.js";
 import { notifyReturnUpdate } from "../lib/notify.js";
 import { markOrderPaid } from "../services/orders.js";
+import { markRepairPaidByPaystack } from "../services/repairs.js";
 
 function verifySignature(rawBody: Buffer, signature: string | undefined): boolean {
   const secret = process.env.PAYSTACK_SECRET_KEY?.trim();
@@ -99,28 +100,48 @@ export async function handlePaystackWebhook(req: Request, res: Response) {
   }
 
   const reference = payload.data.reference;
-  const order = await db.query.orders.findFirst({
-    where: eq(orders.paystackReference, reference),
-  });
-
-  if (!order) {
-    return res.status(404).json({ error: "Order not found" });
-  }
-
-  if (order.status === "paid" || order.status === "fulfilled") {
-    return res.json({ ok: true, alreadyPaid: true });
-  }
 
   try {
     const verified = await verifyTransaction(reference);
     if (!verified || verified.status !== "success") {
       return res.status(402).json({ error: "Payment not successful" });
     }
-    if (verified.amount !== order.totalPesewas || verified.currency !== "GHS") {
-      return res.status(402).json({ error: "Amount or currency mismatch" });
+    if (verified.currency !== "GHS") {
+      return res.status(402).json({ error: "Currency mismatch" });
     }
-    await markOrderPaid(order.id);
-    return res.json({ ok: true });
+
+    const order = await db.query.orders.findFirst({
+      where: eq(orders.paystackReference, reference),
+    });
+    if (order) {
+      if (order.status === "paid" || order.status === "fulfilled") {
+        return res.json({ ok: true, alreadyPaid: true, kind: "order" });
+      }
+      if (verified.amount !== order.totalPesewas) {
+        return res.status(402).json({ error: "Amount mismatch" });
+      }
+      await markOrderPaid(order.id);
+      return res.json({ ok: true, kind: "order" });
+    }
+
+    const repair = await db.query.repairOrders.findFirst({
+      where: eq(repairOrders.paystackReference, reference),
+    });
+    if (!repair) {
+      return res.status(404).json({ error: "Order or repair not found for reference" });
+    }
+    if (repair.paymentStatus === "paid") {
+      return res.json({ ok: true, alreadyPaid: true, kind: "repair" });
+    }
+    if (repair.quotePesewas == null || verified.amount !== repair.quotePesewas) {
+      return res.status(402).json({ error: "Amount mismatch" });
+    }
+    await markRepairPaidByPaystack({
+      repairId: repair.id,
+      amountPesewas: repair.quotePesewas,
+      reference,
+    });
+    return res.json({ ok: true, kind: "repair" });
   } catch (err) {
     console.error("[paystack:webhook]", err);
     return res.status(502).json({ error: "Webhook processing failed" });

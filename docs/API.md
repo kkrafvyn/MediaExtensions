@@ -34,7 +34,9 @@ Base URL: same origin as the storefront (`/api/...`). Session cookie auth for ac
 | POST | `/api/repairs/book` | Create repair ticket |
 | POST | `/api/repairs/track` | Lookup repair by email + id |
 | GET | `/api/repairs/:id` | Repair detail + payments |
-| PATCH | `/api/repairs/:id/quote-decision` | Customer approve/decline quote |
+| POST | `/api/repairs/:id/quote-decision` | Customer approve/decline quote |
+| POST | `/api/repairs/:id/paystack` | Start Paystack (repairs subaccount) |
+| POST | `/api/repairs/paystack/verify` | Confirm repair Paystack payment |
 
 ## Public — tracking & meta
 
@@ -67,6 +69,6 @@ Notable routes: `GET /orders`, `PATCH /orders/:id`, `PATCH /orders/:id/notes`, `
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| POST | `/api/webhooks/paystack` | Paystack charge success (signature verified) |
+| POST | `/api/checkout/paystack/webhook` | Paystack charge.success / refunds (HMAC); routes shop orders and repair tickets by reference |
 
 See [ARCHITECTURE.md](../ARCHITECTURE.md) and [SECURITY.md](../SECURITY.md) for session, Paystack, and upload flow.
