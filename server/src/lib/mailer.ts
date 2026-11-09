@@ -1,7 +1,21 @@
 import nodemailer from "nodemailer";
+import { Resend } from "resend";
+
+function resendConfigured(): boolean {
+  return Boolean(process.env.RESEND_API_KEY?.trim());
+}
 
 function smtpConfigured(): boolean {
   return Boolean(process.env.SMTP_HOST?.trim());
+}
+
+function mailFrom(): string {
+  return (
+    process.env.MAIL_FROM?.trim() ||
+    process.env.SMTP_FROM?.trim() ||
+    process.env.STORE_EMAIL?.trim() ||
+    "noreply@mediaextensions.org"
+  );
 }
 
 function transporter() {
@@ -20,12 +34,39 @@ function transporter() {
   });
 }
 
+async function sendViaResend(opts: {
+  to: string;
+  subject: string;
+  text: string;
+  html?: string;
+}): Promise<boolean> {
+  const key = process.env.RESEND_API_KEY?.trim();
+  if (!key) return false;
+  const resend = new Resend(key);
+  const { error } = await resend.emails.send({
+    from: mailFrom(),
+    to: opts.to,
+    subject: opts.subject,
+    text: opts.text,
+    html: opts.html ?? opts.text.replace(/\n/g, "<br>"),
+  });
+  if (error) {
+    console.error("[mailer:resend]", error);
+    return false;
+  }
+  return true;
+}
+
 export async function sendEmail(opts: {
   to: string;
   subject: string;
   text: string;
   html?: string;
 }): Promise<boolean> {
+  if (resendConfigured()) {
+    return sendViaResend(opts);
+  }
+
   if (!smtpConfigured()) {
     if (process.env.NODE_ENV !== "production") {
       console.log(`[mailer:skip] ${opts.subject} → ${opts.to}\n${opts.text}`);
@@ -33,17 +74,11 @@ export async function sendEmail(opts: {
     return false;
   }
 
-  const from =
-    process.env.SMTP_FROM?.trim() ||
-    process.env.MAIL_FROM?.trim() ||
-    process.env.STORE_EMAIL?.trim() ||
-    "noreply@mediaextensions.gh";
-
   const tx = transporter();
   if (!tx) return false;
 
   await tx.sendMail({
-    from,
+    from: mailFrom(),
     to: opts.to,
     subject: opts.subject,
     text: opts.text,
@@ -54,7 +89,7 @@ export async function sendEmail(opts: {
 }
 
 export function isEmailConfigured(): boolean {
-  return smtpConfigured();
+  return resendConfigured() || smtpConfigured();
 }
 
 export async function sendOrderConfirmation(opts: {

@@ -17,7 +17,7 @@ This project works with **Root Directory = `server`** (your current Vercel setti
 
 ## Env vars
 
-Set from `.env.example` / `server/.env` (at least `DATABASE_URL`, `SESSION_SECRET`, `CLIENT_URL=https://www.mediaextensions.org`). For paid digital sales on Vercel also configure SMTP, S3/R2 storage, and Paystack:
+Set from `.env.example` / `server/.env` (at least `DATABASE_URL`, `SESSION_SECRET`, `CLIENT_URL=https://www.mediaextensions.org`). For paid digital sales on Vercel also configure Resend (`RESEND_API_KEY`, `MAIL_FROM`), S3/R2 storage, and Paystack:
 
 - `PAYSTACK_SECRET_KEY` / `PAYSTACK_PUBLIC_KEY` (one business)
 - `PAYSTACK_SHOP_SUBACCOUNT` / `PAYSTACK_REPAIR_SUBACCOUNT` (`ACCT_…` codes)

@@ -6,15 +6,7 @@ import { useSiteMeta } from "../context/SiteMetaContext";
 import { REPAIR_TRACK_STEPS, repairTimelineIndex } from "../lib/trackingSteps";
 import { whatsappUrl } from "../lib/whatsapp";
 import type { RepairService } from "../types";
-import {
-  IconBolt,
-  IconCheck,
-  IconChat,
-  IconPhone,
-  IconLaptop,
-  IconCamera,
-  IconWrench,
-} from "../components/Icons";
+import { IconBolt, IconCheck, IconChat } from "../components/Icons";
 
 export function RepairsPage() {
   const [services, setServices] = useState<RepairService[]>([]);
@@ -38,7 +30,7 @@ export function RepairsPage() {
             Device repairs in Koforidua.
           </h1>
           <p className="lede" style={{ maxWidth: "38rem" }}>
-            Screen replacements, battery servicing, liquid damage assessment, and board repairs. Choose a service or book diagnostics to get started.
+            Tell us your name, your phone, and what is wrong. We inspect and quote before any billable work.
           </p>
           <p className="meta" style={{ marginTop: "0.75rem" }}>
             <Link to="/repairs/how-we-quote">How we quote</Link>
@@ -49,14 +41,10 @@ export function RepairsPage() {
       </header>
 
       <div className="container">
-
-      {/* IMEI Check Banner */}
       <div
         className="panel"
         style={{
           background: "var(--surface)",
-          backdropFilter: "blur(24px) saturate(180%)",
-          WebkitBackdropFilter: "blur(24px) saturate(180%)",
           color: "var(--ink)",
           padding: "1.75rem 2rem",
           borderRadius: "var(--radius-lg)",
@@ -65,25 +53,27 @@ export function RepairsPage() {
           alignItems: "center",
           flexWrap: "wrap",
           gap: "1.25rem",
-          marginBottom: "3rem",
+          marginBottom: "2rem",
           border: "1px solid var(--line)",
-          boxShadow: "0 12px 32px -8px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
         }}
       >
         <div>
           <span className="badge badge-digital inline-icon-label" style={{ marginBottom: "0.4rem" }}>
-            <IconBolt size={12} /> IMEI Tool
+            <IconBolt size={12} /> Quick booking
           </span>
           <h3 style={{ color: "var(--ink)", fontSize: "1.25rem", margin: "0.2rem 0 0.35rem" }}>
-            Validate IMEI Format
+            Book in under a minute
           </h3>
           <p style={{ color: "var(--muted)", margin: 0, fontSize: "0.88rem", maxWidth: "520px" }}>
-            Verify your 15-digit IMEI checksum before dropping off your device or booking intake.
+            Name, phone model, and the issue — that is all we need to open a ticket.
           </p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-          <Link to="/imei-check" className="btn btn-primary">
-            Check IMEI format
+          <Link to="/repairs/book" className="btn btn-primary">
+            Book a repair
+          </Link>
+          <Link to="/imei-check" className="btn btn-light">
+            Check IMEI
           </Link>
         </div>
       </div>
@@ -105,8 +95,8 @@ export function RepairsPage() {
       </section>
 
       <div className="section-head">
-        <h2>Choose a repair service</h2>
-        <p>Not sure what’s wrong? Book a diagnostic assessment.</p>
+        <h2>Popular services</h2>
+        <p>Optional menu — or skip and describe the issue on the booking form.</p>
       </div>
 
       {loading ? (
@@ -125,13 +115,13 @@ export function RepairsPage() {
               </p>
               <div style={{ paddingTop: "1rem", borderTop: "1px solid var(--line)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", display: "block" }}>Price</span>
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", display: "block" }}>From</span>
                   <strong style={{ fontSize: "1.15rem", color: "var(--ink)" }}>
-                    {s.pricePesewas != null ? formatGhs(s.pricePesewas) : "Price set on diagnosis"}
+                    {s.pricePesewas != null ? formatGhs(s.pricePesewas) : "Quoted after diagnosis"}
                   </strong>
                 </div>
                 <Link to={`/repairs/book?service=${s.id}`} className="btn btn-primary btn-sm">
-                  Book Now
+                  Book
                 </Link>
               </div>
             </div>
@@ -139,16 +129,16 @@ export function RepairsPage() {
         </div>
       ) : (
         <div className="empty">
-          <p>No repair services are listed yet. Book a diagnostic and we will confirm pricing after inspection.</p>
+          <p>No listed services yet — you can still book with your name, phone, and issue.</p>
           <Link to="/repairs/book" className="btn btn-primary" style={{ marginTop: "1rem" }}>
-            Request a diagnosis
+            Book a repair
           </Link>
         </div>
       )}
 
       <div style={{ textAlign: "center", marginTop: "3.5rem" }}>
         <Link to="/repairs/book" className="btn btn-dark">
-          Book Custom Diagnostic
+          Book a repair
         </Link>
       </div>
       </div>
@@ -160,40 +150,14 @@ export function RepairBookPage() {
   const { user } = useAuth();
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const [services, setServices] = useState<RepairService[]>([]);
-  const [serviceId, setServiceId] = useState(params.get("service") ?? "");
-  const [deviceCategory, setDeviceCategory] = useState("");
   const [name, setName] = useState(user?.name ?? "");
-  const [email, setEmail] = useState(user?.email ?? "");
-  const [phone, setPhone] = useState(user?.phone ?? "+233 ");
-  const [deviceBrand, setDeviceBrand] = useState("");
-  const [deviceModel, setDeviceModel] = useState("");
+  const [phone, setPhone] = useState(user?.phone ?? "+233");
+  const [deviceName, setDeviceName] = useState("");
   const [issue, setIssue] = useState(params.get("issue") ?? "");
-  const issueParam = params.get("issue") ?? "";
-  const imeiFromIssue = issueParam.match(/IMEI Check:\s*(\d{15})/i)?.[1] ?? "";
+  const [serviceId] = useState(params.get("service") ?? "");
   const imeiFromQuery = (params.get("imei") ?? "").replace(/\D/g, "");
-  const initialImei =
-    imeiFromQuery.length === 15 ? imeiFromQuery : imeiFromIssue;
-  const [imei, setImei] = useState(initialImei);
-
-  useEffect(() => {
-    const digits = (params.get("imei") ?? "").replace(/\D/g, "");
-    if (digits.length === 15) setImei(digits);
-  }, [params]);
-  const [dropOffNotes, setDropOffNotes] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    api<{ services: RepairService[] }>("/api/repairs/services")
-      .then((d) => setServices(d.services))
-      .catch(() => undefined);
-  }, []);
-
-  function handleCategorySelect(cat: string, defaultBrand: string) {
-    setDeviceCategory(cat);
-    setDeviceBrand(defaultBrand);
-  }
 
   function appendIssueTag(tag: string) {
     if (!issue.includes(tag)) {
@@ -210,14 +174,11 @@ export function RepairBookPage() {
         method: "POST",
         body: JSON.stringify({
           serviceId: serviceId || undefined,
-          name,
-          email,
-          phone,
-          deviceBrand: `${deviceCategory ? `[${deviceCategory}] ` : ""}${deviceBrand}`.trim(),
-          deviceModel,
-          issue,
-          dropOffNotes,
-          imei: imei.replace(/\D/g, "").length === 15 ? imei.replace(/\D/g, "") : undefined,
+          name: name.trim(),
+          phone: phone.trim(),
+          deviceName: deviceName.trim(),
+          issue: issue.trim(),
+          imei: imeiFromQuery.length === 15 ? imeiFromQuery : undefined,
           paymentMethod: "pickup",
         }),
       });
@@ -230,158 +191,81 @@ export function RepairBookPage() {
   }
 
   return (
-    <div className="page container" style={{ maxWidth: 700 }}>
+    <div className="page container" style={{ maxWidth: 560 }}>
       <p className="eyebrow page-eyebrow">
         <span className="pulse-dot" />
-        GSM Studio Intake
+        Quick repair intake
       </p>
-      <h1>Book a device repair</h1>
+      <h1>Book a repair</h1>
       <p className="lede">
-        Book your device in a few simple steps. Our admin will inspect it and confirm the final price before any work begins.
+        Your name, the phone, and what is wrong. We will call or WhatsApp you with a quote before any paid work.
       </p>
 
       <form className="panel stack" onSubmit={onSubmit}>
+        <label>
+          Your name
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Full name"
+            autoComplete="name"
+            required
+          />
+        </label>
+
+        <label>
+          WhatsApp / phone number
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+233 XX XXX XXXX"
+            inputMode="tel"
+            autoComplete="tel"
+            required
+            minLength={8}
+          />
+        </label>
+
+        <label>
+          Name of the phone / device
+          <input
+            value={deviceName}
+            onChange={(e) => setDeviceName(e.target.value)}
+            placeholder="e.g. iPhone 13, Samsung A54, Tecno Spark"
+            required
+            minLength={2}
+          />
+        </label>
+
         <div>
-          <div id="device-category-label" style={{ marginBottom: "0.6rem", fontWeight: 600 }}>Select Device Category</div>
-          <div className="device-select-grid" role="group" aria-labelledby="device-category-label">
-            {[
-              { label: "iPhone", brand: "Apple", Icon: IconPhone },
-              { label: "Samsung", brand: "Samsung", Icon: IconPhone },
-              { label: "MacBook", brand: "Apple", Icon: IconLaptop },
-              { label: "iPad / Tablet", brand: "Apple", Icon: IconPhone },
-              { label: "Camera / Gear", brand: "Sony", Icon: IconCamera },
-              { label: "Other Device", brand: "", Icon: IconWrench },
-            ].map((d) => (
-              <button
-                key={d.label}
-                type="button"
-                className={`device-chip ${deviceCategory === d.label ? "selected" : ""}`}
-                aria-pressed={deviceCategory === d.label}
-                onClick={() => handleCategorySelect(d.label, d.brand)}
-              >
-                <d.Icon size={22} />
-                <span>{d.label}</span>
+          <label>
+            What is wrong?
+            <textarea
+              rows={4}
+              value={issue}
+              onChange={(e) => setIssue(e.target.value)}
+              placeholder="e.g. cracked screen, no charge, water damage"
+              required
+              minLength={5}
+            />
+          </label>
+          <div className="issue-tags-row" style={{ marginTop: "0.5rem" }}>
+            {["Cracked screen", "Battery", "No power", "Charging port", "Water damage"].map((tag) => (
+              <button key={tag} type="button" className="issue-tag-chip" onClick={() => appendIssueTag(tag)}>
+                + {tag}
               </button>
             ))}
           </div>
         </div>
 
-        <label>
-          Repair Service Requested
-          <select value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
-            <option value="">General Diagnosis & Upfront Quote</option>
-            {services.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} {s.pricePesewas != null ? `(${formatGhs(s.pricePesewas)})` : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div className="form-grid two">
-          <label>
-            Brand / Manufacturer
-            <input
-              value={deviceBrand}
-              onChange={(e) => setDeviceBrand(e.target.value)}
-              placeholder="e.g. Apple, Samsung, Sony"
-              required
-            />
-          </label>
-          <label>
-            Device Model
-            <input
-              value={deviceModel}
-              onChange={(e) => setDeviceModel(e.target.value)}
-              placeholder="e.g. iPhone 15 Pro, S24 Ultra, A7IV"
-              required
-            />
-          </label>
-        </div>
-
-        <div>
-          <label>
-            Describe the Fault / Symptoms
-            <textarea
-              rows={3}
-              value={issue}
-              onChange={(e) => setIssue(e.target.value)}
-              placeholder="Describe what happened (e.g. cracked display, battery drains fast, water spill)"
-              required
-              minLength={5}
-            />
-          </label>
-
-          {/* Common issue tags */}
-          <div style={{ marginTop: "0.5rem" }}>
-            <span style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600 }}>
-              Quick Issue Tags:
-            </span>
-            <div className="issue-tags-row">
-              {[
-                "Cracked Screen",
-                "Battery Replacement",
-                "Water Damage",
-                "Charging Port",
-                "Camera / Lens Issue",
-                "No Power / Dead",
-                "Back Glass",
-              ].map((tag) => (
-                <button
-                  key={tag}
-                  type="button"
-                  className="issue-tag-chip"
-                  onClick={() => appendIssueTag(tag)}
-                >
-                  + {tag}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="form-grid two">
-          <label>
-            Your Full Name
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" required />
-          </label>
-          <label>
-            Contact Phone (MoMo / WhatsApp)
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+233 XX XXX XXXX" required minLength={8} />
-          </label>
-        </div>
-
-        <label>
-          Email Address (For ticket tracker & invoice)
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email.com" required />
-        </label>
-
-        <label>
-          Device IMEI <span className="meta">(optional, 15 digits)</span>
-          <input
-            inputMode="numeric"
-            pattern="\d{15}"
-            maxLength={15}
-            value={imei}
-            onChange={(e) => setImei(e.target.value.replace(/\D/g, "").slice(0, 15))}
-            placeholder="From Settings or *#06#"
-          />
-        </label>
-
-        <label>
-          Drop-off / Courier Notes <span className="meta">(optional)</span>
-          <textarea
-            rows={2}
-            value={dropOffNotes}
-            onChange={(e) => setDropOffNotes(e.target.value)}
-            placeholder="e.g. I will drop off at Kumasi Station tomorrow morning"
-          />
-        </label>
+        {imeiFromQuery.length === 15 && (
+          <p className="meta">IMEI from checker will be saved: {imeiFromQuery}</p>
+        )}
 
         {error && <div className="alert-banner">{error}</div>}
 
-        <button className="btn btn-primary" type="submit" disabled={submitting} style={{ height: "3.2rem", fontSize: "1.05rem" }}>
-          {submitting ? "Booking Repair Ticket…" : "Confirm Repair Booking →"}
+        <button className="btn btn-primary" type="submit" disabled={submitting} style={{ height: "3.2rem" }}>
+          {submitting ? "Submitting…" : "Submit repair ticket →"}
         </button>
       </form>
     </div>
@@ -440,7 +324,11 @@ export function RepairStatusPage() {
 
   const repairTrack = repairTimelineIndex(repair.status);
   const waMessage = `Hello Media Extensions, I am checking the status of my repair ticket #${repair.id.slice(0, 8)} (${repair.deviceBrand} ${repair.deviceModel}).`;
-  const waHref = whatsappUrl(meta?.storeWhatsApp ?? meta?.store?.whatsapp, waMessage);
+  const waHref = whatsappUrl(meta?.storeWhatsApp ?? meta?.store?.whatsapp ?? undefined, waMessage);
+  const deviceLabel =
+    repair.deviceBrand === repair.deviceModel
+      ? repair.deviceModel
+      : `${repair.deviceBrand} ${repair.deviceModel}`.trim();
 
   return (
     <div className="page container" style={{ maxWidth: 700 }}>
@@ -450,10 +338,9 @@ export function RepairStatusPage() {
       </p>
       <h1>Ticket #{repair.id.slice(0, 8)}</h1>
       <p className="lede">
-        Thanks, {repair.name}. Our master technicians have your ticket logged. We will contact you via WhatsApp / SMS on <strong>{repair.phone}</strong>.
+        Thanks, {repair.name}. Save this ticket ID. We will reach you on <strong>{repair.phone}</strong>.
       </p>
 
-      {/* Progress Timeline */}
       <div className="panel" style={{ marginBottom: "1.75rem" }}>
         <h4 style={{ marginBottom: "1.5rem" }}>Live Repair Stage</h4>
         {repairTrack.cancelled && (
@@ -490,13 +377,11 @@ export function RepairStatusPage() {
         </div>
         <div className="line-item">
           <span>Service Type</span>
-          <strong>{repair.service?.name ?? "General Diagnostics"}</strong>
+          <strong>{repair.service?.name ?? "General diagnosis"}</strong>
         </div>
         <div className="line-item">
-          <span>Device Info</span>
-          <span>
-            {repair.deviceBrand} {repair.deviceModel}
-          </span>
+          <span>Device</span>
+          <span>{deviceLabel}</span>
         </div>
         {repair.imei && (
           <div className="line-item">
@@ -505,13 +390,13 @@ export function RepairStatusPage() {
           </div>
         )}
         <div className="line-item">
-          <span>Reported Issue</span>
+          <span>Issue</span>
           <span style={{ maxWidth: "340px", textAlign: "right" }}>{repair.issue}</span>
         </div>
         <div className="line-item">
           <span>Official Quote</span>
           <strong style={{ fontSize: "1.2rem", color: "var(--accent)" }}>
-            {repair.quotePesewas != null ? formatGhs(repair.quotePesewas) : "Pending Technician Inspection"}
+            {repair.quotePesewas != null ? formatGhs(repair.quotePesewas) : "Pending inspection"}
           </strong>
         </div>
         <div className="line-item">
@@ -609,50 +494,42 @@ export function RepairStatusPage() {
             </div>
           )}
 
-        {/* WhatsApp Direct Support */}
         <div
           style={{
             marginTop: "1rem",
             padding: "1rem 1.25rem",
             background: "var(--emerald-soft)",
             borderRadius: "var(--radius-sm)",
-            border: "1px solid rgba(16, 185, 129, 0.25)",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            flexWrap: "wrap",
             gap: "1rem",
+            flexWrap: "wrap",
           }}
         >
           <div>
-            <strong style={{ color: "var(--emerald)", display: "block" }}>Need quick assistance?</strong>
-            <span style={{ fontSize: "0.85rem", color: "var(--ink)" }}>Contact our technician if you need help with your repair ticket.</span>
+            <strong style={{ display: "block", marginBottom: "0.2rem" }}>Need help?</strong>
+            <span className="meta">Message us on WhatsApp with your ticket ID.</span>
           </div>
           {waHref ? (
-            <a
-              href={waHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-sm inline-icon-label"
-              style={{ background: "#25D366", color: "#072514", borderRadius: "var(--radius-full)" }}
-            >
-              <IconChat size={16} /> Chat on WhatsApp
+            <a href={waHref} className="btn btn-dark btn-sm" target="_blank" rel="noreferrer">
+              <span className="inline-icon-label">
+                <IconChat size={14} /> WhatsApp
+              </span>
             </a>
           ) : (
-            <span className="meta">WhatsApp contact is not configured yet.</span>
+            <Link to="/contact" className="btn btn-dark btn-sm">
+              Contact
+            </Link>
           )}
         </div>
 
-        <div className="cta-row" style={{ marginTop: "1rem" }}>
-          <Link
-            to={`/repairs/status/${repair.id}/receipt`}
-            className="btn btn-light"
-            style={{ flex: 1 }}
-          >
-            Print Service Receipt
+        <div className="cta-row" style={{ marginTop: "0.5rem" }}>
+          <Link to={`/repairs/status/${repair.id}/receipt`} className="btn btn-light">
+            Receipt
           </Link>
-          <Link to="/repairs" className="btn btn-dark" style={{ flex: 1 }}>
-            Repair Studio Hub
+          <Link to="/track" className="btn btn-light">
+            Track another
           </Link>
         </div>
       </div>

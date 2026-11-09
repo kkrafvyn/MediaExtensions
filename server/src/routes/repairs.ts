@@ -42,11 +42,14 @@ router.get("/services", async (_req, res) => {
 router.post("/book", async (req: AuthedRequest, res) => {
   const schema = z.object({
     serviceId: z.string().uuid().optional(),
-    email: z.string().email(),
+    /** Optional — synthetic email derived from phone when omitted */
+    email: z.string().email().optional().or(z.literal("")),
     phone: z.string().min(8),
     name: z.string().min(1),
-    deviceBrand: z.string().min(1),
-    deviceModel: z.string().min(1),
+    /** Simple intake: single "phone name" field */
+    deviceName: z.string().min(1).optional(),
+    deviceBrand: z.string().min(1).optional(),
+    deviceModel: z.string().min(1).optional(),
     issue: z.string().min(5),
     dropOffNotes: z.string().optional(),
     paymentMethod: z.enum(["momo", "bank", "pickup"]).optional(),
@@ -61,6 +64,18 @@ router.post("/book", async (req: AuthedRequest, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid booking data" });
   }
+
+  const deviceName = parsed.data.deviceName?.trim();
+  const deviceBrand = (parsed.data.deviceBrand?.trim() || deviceName || "Phone").slice(0, 120);
+  const deviceModel = (parsed.data.deviceModel?.trim() || deviceName || "Unknown").slice(0, 120);
+  if (!deviceName && (!parsed.data.deviceBrand || !parsed.data.deviceModel)) {
+    return res.status(400).json({ error: "Enter the phone or device name" });
+  }
+
+  const phoneDigits = parsed.data.phone.replace(/\D/g, "");
+  const email =
+    parsed.data.email?.trim().toLowerCase() ||
+    `repair-${phoneDigits || nanoid(8)}@customers.mediaextensions.org`;
 
   let quotePesewas: number | null = null;
   let serviceName: string | null = null;
@@ -81,11 +96,11 @@ router.post("/book", async (req: AuthedRequest, res) => {
       userId: req.user?.id ?? null,
       sessionId: getCartSessionId(req),
       serviceId: parsed.data.serviceId,
-      email: parsed.data.email.toLowerCase(),
+      email,
       phone: parsed.data.phone,
       name: parsed.data.name,
-      deviceBrand: parsed.data.deviceBrand,
-      deviceModel: parsed.data.deviceModel,
+      deviceBrand,
+      deviceModel,
       issue: parsed.data.issue,
       dropOffNotes: parsed.data.dropOffNotes,
       imei: parsed.data.imei?.trim() || null,

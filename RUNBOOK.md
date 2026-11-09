@@ -35,6 +35,12 @@ If a subaccount env is empty, initialize still works and funds stay on the main 
 | Rate limit 429 everywhere | Postgres `rate_limit_buckets` missing — run migration 0014 |
 | Digital downloads 404 | `digitalAssetPath` wrong or file not on R2 |
 
+## Email (Resend)
+
+1. In [Resend](https://resend.com), add domain `mediaextensions.org` and complete DNS (SPF/DKIM) verification — do this once in the dashboard (not on every deploy).
+2. Set Vercel `RESEND_API_KEY` and `MAIL_FROM=Media Extensions <noreply@mediaextensions.org>`.
+3. App uses Resend when `RESEND_API_KEY` is set; otherwise SMTP; otherwise logs to console/`notifications`.
+
 ## Scripts
 
 - `npm run db:migrate` — apply Drizzle SQL
